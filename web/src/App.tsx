@@ -298,15 +298,30 @@ export function App() {
   }, [activeTab, initialized]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleAction = useCallback((itemId: string, action: ActionType, reason?: string) => {
+  const handleAction = useCallback((itemId: string, action: ActionType, reason?: string, banDuration?: number) => {
     setActingIds(prev => new Set([...prev, itemId]));
-    send({ type: 'TAKE_ACTION', itemId, action, reason });
+    send({ type: 'TAKE_ACTION', itemId, action, reason, banDuration: action === 'ban' ? banDuration : undefined });
+  }, [send]);
+
+  const handleBulkAction = useCallback((ids: string[], action: ActionType) => {
+    ids.forEach(id => {
+      setActingIds(prev => new Set([...prev, id]));
+      send({ type: 'TAKE_ACTION', itemId: id, action });
+    });
   }, [send]);
 
   const handleScore = useCallback((item: QueueItem) => {
     setScoringIds(prev => new Set([...prev, item.id]));
     send({ type: 'SCORE_ITEM', itemId: item.id, itemType: item.type, title: item.title, body: item.body });
   }, [send]);
+
+  const handleScoreAll = useCallback(() => {
+    const unscored = queueItems.filter(i => i.status === 'pending' && !i.aiScore);
+    unscored.forEach(item => {
+      setScoringIds(prev => new Set([...prev, item.id]));
+      send({ type: 'SCORE_ITEM', itemId: item.id, itemType: item.type, title: item.title, body: item.body });
+    });
+  }, [queueItems, send]);
 
   const handleViewUser = useCallback((username: string) => {
     setViewingUser(username);
@@ -429,7 +444,9 @@ export function App() {
             loading={queueLoading}
             onRefresh={() => { setQueueLoading(true); send({ type: 'LOAD_QUEUE' }); }}
             onAction={handleAction}
+            onBulkAction={handleBulkAction}
             onScore={handleScore}
+            onScoreAll={handleScoreAll}
             onViewUser={handleViewUser}
             onOpenLink={handleOpenLink}
             scoringIds={scoringIds}

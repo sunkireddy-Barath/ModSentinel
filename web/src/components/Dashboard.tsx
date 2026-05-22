@@ -4,6 +4,7 @@ import {
   RefreshCw, CheckCircle, XCircle, Flag, Lock,
   Clock, User, Cpu, MoreHorizontal,
   ChevronDown, ChevronUp, ExternalLink, Loader2,
+  Zap, Square, CheckSquare,
 } from 'lucide-react';
 import type { QueueItem, ActionType, RiskLevel } from '../types';
 
@@ -11,8 +12,10 @@ interface DashboardProps {
   items: QueueItem[];
   loading: boolean;
   onRefresh: () => void;
-  onAction: (itemId: string, action: ActionType, reason?: string) => void;
+  onAction: (itemId: string, action: ActionType, reason?: string, banDuration?: number) => void;
+  onBulkAction: (ids: string[], action: ActionType) => void;
   onScore: (item: QueueItem) => void;
+  onScoreAll: () => void;
   onViewUser: (username: string) => void;
   onOpenLink: (permalink: string) => void;
   scoringIds: Set<string>;
@@ -39,27 +42,68 @@ const RISK_DOT: Record<RiskLevel, string> = {
   SAFE:     'bg-risk-safe',
 };
 
+const RISK_ORDER: Record<string, number> = {
+  CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, SAFE: 4,
+};
+
 export function Dashboard({
-  items, loading, onRefresh, onAction, onScore, onViewUser, onOpenLink, scoringIds, actingIds,
+  items, loading, onRefresh, onAction, onBulkAction, onScore, onScoreAll,
+  onViewUser, onOpenLink, scoringIds, actingIds,
 }: DashboardProps) {
   const [filterRisk, setFilterRisk] = useState<FilterRisk>('all');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('pending');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<{ itemId: string; author: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const filtered = items.filter(item => {
-    if (filterStatus !== 'all' && item.status !== filterStatus) return false;
-    if (filterType !== 'all' && item.type !== filterType) return false;
-    if (filterRisk !== 'all') {
-      const level = item.aiScore?.riskLevel ?? 'SAFE';
-      if (level !== filterRisk) return false;
-    }
-    return true;
-  });
+  const filtered = items
+    .filter(item => {
+      if (filterStatus !== 'all' && item.status !== filterStatus) return false;
+      if (filterType !== 'all' && item.type !== filterType) return false;
+      if (filterRisk !== 'all') {
+        const level = item.aiScore?.riskLevel ?? 'SAFE';
+        if (level !== filterRisk) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const aRisk = RISK_ORDER[a.aiScore?.riskLevel ?? ''] ?? 5;
+      const bRisk = RISK_ORDER[b.aiScore?.riskLevel ?? ''] ?? 5;
+      if (aRisk !== bRisk) return aRisk - bRisk;
+      return b.createdAt - a.createdAt;
+    });
 
+  const pendingItems = filtered.filter(i => i.status === 'pending');
   const criticalCount = items.filter(i => i.aiScore?.riskLevel === 'CRITICAL' && i.status === 'pending').length;
   const pendingCount = items.filter(i => i.status === 'pending').length;
+  const unscoredCount = items.filter(i => i.status === 'pending' && !i.aiScore).length;
+
+  const allPendingFilteredIds = pendingItems.map(i => i.id);
+  const allPendingSelected = allPendingFilteredIds.length > 0 &&
+    allPendingFilteredIds.every(id => selectedIds.has(id));
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allPendingSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allPendingFilteredIds));
+    }
+  }
+
+  function handleBulk(action: ActionType) {
+    const ids = [...selectedIds];
+    onBulkAction(ids, action);
+    setSelectedIds(new Set());
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -76,14 +120,25 @@ export function Dashboard({
             )}
           </div>
         </div>
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="flex items-center gap-2 text-text-secondary hover:text-text-primary text-sm transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {unscoredCount > 0 && (
+            <button
+              onClick={onScoreAll}
+              className="flex items-center gap-1.5 text-xs bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/30 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Zap size={12} />
+              Score All ({unscoredCount})
+            </button>
+          )}
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="flex items-center gap-2 text-text-secondary hover:text-text-primary text-sm transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -92,7 +147,7 @@ export function Dashboard({
           label="Status"
           options={['all', 'pending', 'approved', 'removed'] as FilterStatus[]}
           value={filterStatus}
-          onChange={setFilterStatus}
+          onChange={v => { setFilterStatus(v); setSelectedIds(new Set()); }}
         />
         <div className="w-px bg-border mx-1" />
         <FilterGroup
@@ -108,7 +163,34 @@ export function Dashboard({
           value={filterRisk}
           onChange={setFilterRisk}
         />
+        {filtered.length > 0 && filterStatus !== 'all' && (
+          <>
+            <div className="w-px bg-border mx-1" />
+            <span className="text-text-muted text-xs self-center">{filtered.length} shown</span>
+          </>
+        )}
       </div>
+
+      {/* Select-all bar (only when pending items exist) */}
+      {pendingItems.length > 0 && (
+        <div className="px-5 py-2 border-b border-border/50 flex items-center gap-3 bg-bg-secondary/30 flex-shrink-0">
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center gap-2 text-text-muted hover:text-text-secondary text-xs transition-colors"
+          >
+            {allPendingSelected
+              ? <CheckSquare size={13} className="text-reddit-orange" />
+              : <Square size={13} />
+            }
+            {allPendingSelected ? 'Deselect all' : `Select all ${pendingItems.length}`}
+          </button>
+          {selectedIds.size > 0 && (
+            <span className="text-xs text-reddit-orange font-medium">
+              {selectedIds.size} selected
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Queue */}
       <div className="flex-1 overflow-y-auto">
@@ -131,19 +213,51 @@ export function Dashboard({
                 isScoring={scoringIds.has(item.id)}
                 isActing={actingIds.has(item.id)}
                 onShowActionModal={() => setActionModal({ itemId: item.id, author: item.author })}
+                selected={selectedIds.has(item.id)}
+                onToggleSelect={() => toggleSelect(item.id)}
               />
             ))}
           </div>
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex-shrink-0 px-5 py-3 border-t border-border bg-bg-card flex items-center justify-between animate-slide-in">
+          <span className="text-text-secondary text-sm font-medium">
+            {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleBulk('approve')}
+              className="flex items-center gap-1.5 text-xs bg-risk-low/10 text-risk-low hover:bg-risk-low/20 border border-risk-low/30 px-3 py-1.5 rounded-lg transition-colors font-medium"
+            >
+              <CheckCircle size={12} />
+              Approve All
+            </button>
+            <button
+              onClick={() => handleBulk('remove')}
+              className="flex items-center gap-1.5 text-xs bg-risk-critical/10 text-risk-critical hover:bg-risk-critical/20 border border-risk-critical/30 px-3 py-1.5 rounded-lg transition-colors font-medium"
+            >
+              <XCircle size={12} />
+              Remove All
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-text-muted hover:text-text-secondary px-2 py-1.5 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Ban/Action modal */}
       {actionModal && (
         <ActionModal
-          itemId={actionModal.itemId}
           author={actionModal.author}
           onConfirm={(action, reason, banDuration) => {
-            onAction(actionModal.itemId, action, reason);
+            onAction(actionModal.itemId, action, reason, banDuration);
             setActionModal(null);
           }}
           onClose={() => setActionModal(null)}
@@ -159,18 +273,20 @@ interface QueueCardProps {
   item: QueueItem;
   expanded: boolean;
   onToggleExpand: () => void;
-  onAction: (itemId: string, action: ActionType, reason?: string) => void;
+  onAction: (itemId: string, action: ActionType, reason?: string, banDuration?: number) => void;
   onScore: () => void;
   onViewUser: () => void;
   onOpenLink: () => void;
   isScoring: boolean;
   isActing: boolean;
   onShowActionModal: () => void;
+  selected: boolean;
+  onToggleSelect: () => void;
 }
 
 function QueueCard({
   item, expanded, onToggleExpand, onAction, onScore, onViewUser, onOpenLink,
-  isScoring, isActing, onShowActionModal,
+  isScoring, isActing, onShowActionModal, selected, onToggleSelect,
 }: QueueCardProps) {
   const score = item.aiScore;
   const riskLevel = score?.riskLevel ?? null;
@@ -180,16 +296,30 @@ function QueueCard({
     <div
       className={`
         group transition-colors
-        ${isActioned ? 'opacity-60' : 'hover:bg-bg-hover/30'}
-        ${riskLevel === 'CRITICAL' ? 'border-l-2 border-risk-critical' : ''}
+        ${selected ? 'bg-reddit-orange/5 border-l-2 border-reddit-orange' :
+          isActioned ? 'opacity-60' :
+          riskLevel === 'CRITICAL' ? 'border-l-2 border-risk-critical hover:bg-bg-hover/30' :
+          'hover:bg-bg-hover/30'
+        }
       `}
     >
       {/* Main row */}
       <div className="px-5 py-3.5">
         <div className="flex items-start gap-3">
-          {/* Risk indicator */}
-          <div className="flex-shrink-0 mt-1">
-            {riskLevel ? (
+          {/* Checkbox / risk indicator */}
+          <div className="flex-shrink-0 mt-1 w-4 flex items-center justify-center">
+            {!isActioned ? (
+              <button
+                onClick={onToggleSelect}
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ opacity: selected ? 1 : undefined }}
+              >
+                {selected
+                  ? <CheckSquare size={14} className="text-reddit-orange" />
+                  : <Square size={14} className="text-text-muted" />
+                }
+              </button>
+            ) : riskLevel ? (
               <div className={`w-2 h-2 rounded-full ${RISK_DOT[riskLevel]}`} />
             ) : (
               <div className="w-2 h-2 rounded-full bg-border" />
@@ -289,7 +419,7 @@ function QueueCard({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between mt-3 ml-5">
+        <div className="flex items-center justify-between mt-3 ml-7">
           <div className="flex items-center gap-1.5">
             {!isActioned && (
               <>
@@ -427,9 +557,8 @@ function FilterGroup<T extends string>({
 }
 
 function ActionModal({
-  itemId, author, onConfirm, onClose,
+  author, onConfirm, onClose,
 }: {
-  itemId: string;
   author: string;
   onConfirm: (action: ActionType, reason?: string, banDuration?: number) => void;
   onClose: () => void;
