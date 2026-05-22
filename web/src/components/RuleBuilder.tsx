@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Plus, Save, Trash2, ToggleLeft, ToggleRight,
   ChevronDown, ChevronUp, GripVertical, AlertTriangle, Loader2,
+  Copy, Download, Upload,
 } from 'lucide-react';
 import type { Rule, RuleCondition, RuleAction, ConditionField, ConditionOperator, ActionType } from '../types';
 
@@ -83,6 +84,8 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
   const [localRules, setLocalRules] = useState<Rule[]>(rules);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const update = (updated: Rule[]) => {
     setLocalRules(updated);
@@ -101,12 +104,61 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
     if (editingId === id) setEditingId(null);
   };
 
+  const duplicateRule = (id: string) => {
+    const src = localRules.find(r => r.id === id);
+    if (!src) return;
+    const copy: Rule = {
+      ...src,
+      id: `rule_${Date.now()}`,
+      name: `${src.name} (copy)`,
+      matchCount: 0,
+      priority: src.priority + 1,
+    };
+    const idx = localRules.findIndex(r => r.id === id);
+    const updated = [...localRules.slice(0, idx + 1), copy, ...localRules.slice(idx + 1)];
+    update(updated);
+    setEditingId(copy.id);
+  };
+
   const toggleEnabled = (id: string) => {
     update(localRules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
   };
 
   const updateRule = (id: string, patch: Partial<Rule>) => {
     update(localRules.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
+
+  const exportRules = () => {
+    const blob = new Blob([JSON.stringify(localRules, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modsentinel-rules.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string) as unknown;
+        if (!Array.isArray(parsed)) throw new Error('Expected a JSON array of rules');
+        const imported = (parsed as Rule[]).map(r => ({
+          ...r,
+          id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          matchCount: 0,
+        }));
+        update([...localRules, ...imported]);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : 'Invalid JSON');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (
@@ -116,20 +168,43 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
         <div>
           <h2 className="text-text-primary font-bold text-lg">Rule Builder</h2>
           <p className="text-text-muted text-xs mt-0.5">
-            ContextMod-compatible rule engine — {localRules.filter(r => r.enabled).length} active rule{localRules.filter(r => r.enabled).length !== 1 ? 's' : ''}
+            ContextMod-compatible — {localRules.filter(r => r.enabled).length} active
+            {localRules.reduce((s, r) => s + (r.matchCount ?? 0), 0) > 0 && (
+              <span className="ml-2 text-reddit-orange">
+                · {localRules.reduce((s, r) => s + (r.matchCount ?? 0), 0).toLocaleString()} total matches
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {dirty && (
-            <span className="text-xs text-amber-400">Unsaved changes</span>
+          {importError && (
+            <span className="text-xs text-risk-critical max-w-32 truncate" title={importError}>{importError}</span>
           )}
+          {dirty && (
+            <span className="text-xs text-amber-400">Unsaved</span>
+          )}
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <button
+            onClick={() => importRef.current?.click()}
+            title="Import rules from JSON"
+            className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary border border-border px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            <Upload size={12} />Import
+          </button>
+          <button
+            onClick={exportRules}
+            title="Export rules as JSON"
+            className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary border border-border px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            <Download size={12} />Export
+          </button>
           <button
             onClick={() => { onSave(localRules); setDirty(false); }}
             disabled={saving || !dirty}
             className="flex items-center gap-2 bg-reddit-orange hover:bg-reddit-orangeHover disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Save Rules
+            Save
           </button>
         </div>
       </div>
@@ -152,6 +227,7 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
             onToggleEdit={() => setEditingId(id => id === rule.id ? null : rule.id)}
             onToggleEnabled={() => toggleEnabled(rule.id)}
             onDelete={() => deleteRule(rule.id)}
+            onDuplicate={() => duplicateRule(rule.id)}
             onUpdate={(patch) => updateRule(rule.id, patch)}
           />
         ))}
@@ -171,7 +247,7 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
 // ─── RuleCard ─────────────────────────────────────────────────────────────────
 
 function RuleCard({
-  rule, index, isEditing, onToggleEdit, onToggleEnabled, onDelete, onUpdate,
+  rule, index, isEditing, onToggleEdit, onToggleEnabled, onDelete, onDuplicate, onUpdate,
 }: {
   rule: Rule;
   index: number;
@@ -179,6 +255,7 @@ function RuleCard({
   onToggleEdit: () => void;
   onToggleEnabled: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onUpdate: (patch: Partial<Rule>) => void;
 }) {
   return (
@@ -208,9 +285,16 @@ function RuleCard({
               {rule.enabled ? 'Active' : 'Disabled'}
             </span>
             <span className="text-xs text-text-muted">{rule.appliesTo}</span>
-            <span className="text-xs text-text-muted">{rule.matchCount} matches</span>
-            {rule.matchCount > 0 && (
-              <span className="text-xs text-reddit-orange">🔥</span>
+            {rule.matchCount > 0 ? (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                rule.matchCount >= 100 ? 'bg-risk-critical/15 text-risk-critical' :
+                rule.matchCount >= 20 ? 'bg-risk-high/15 text-risk-high' :
+                'bg-reddit-orange/15 text-reddit-orange'
+              }`}>
+                {rule.matchCount.toLocaleString()} hits
+              </span>
+            ) : (
+              <span className="text-xs text-text-muted opacity-60">0 hits</span>
             )}
           </div>
         </div>
@@ -225,6 +309,13 @@ function RuleCard({
               ? <ToggleRight size={18} className="text-risk-low" />
               : <ToggleLeft size={18} className="text-text-muted" />
             }
+          </button>
+          <button
+            onClick={onDuplicate}
+            title="Duplicate rule"
+            className="p-1.5 hover:bg-bg-tertiary rounded-lg transition-colors text-text-muted hover:text-text-primary"
+          >
+            <Copy size={14} />
           </button>
           <button
             onClick={onToggleEdit}
