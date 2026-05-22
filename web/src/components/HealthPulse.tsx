@@ -1,9 +1,9 @@
-import { RefreshCw, TrendingUp, TrendingDown, Minus, Loader2 } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus, Loader2, Zap } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, ResponsiveContainer, Legend,
 } from 'recharts';
-import type { HealthStats } from '../types';
+import type { HealthStats, RecentAction } from '../types';
 
 interface HealthPulseProps {
   stats: HealthStats | null;
@@ -227,6 +227,17 @@ export function HealthPulse({ stats, loading, onRefresh }: HealthPulseProps) {
                 </div>
               </ChartCard>
             )}
+
+            {/* Recent actions feed */}
+            {stats.recentActions.length > 0 && (
+              <ChartCard title="Recent Actions">
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                  {stats.recentActions.map((a, i) => (
+                    <ActionFeedRow key={`${a.itemId}-${i}`} action={a} />
+                  ))}
+                </div>
+              </ChartCard>
+            )}
           </div>
         )}
       </div>
@@ -294,6 +305,42 @@ function EmptyHealth({ onRefresh }: { onRefresh: () => void }) {
       >
         Generate Report
       </button>
+    </div>
+  );
+}
+
+const ACTION_COLORS: Record<string, string> = {
+  remove:     'text-risk-critical',
+  approve:    'text-risk-low',
+  ban:        'text-risk-critical',
+  mute:       'text-risk-high',
+  report:     'text-risk-medium',
+  hold:       'text-risk-medium',
+  lock:       'text-risk-high',
+  distinguish:'text-risk-safe',
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  remove: '🗑️', approve: '✅', ban: '🔨', mute: '🔇',
+  report: '🚩', hold: '⏸️', lock: '🔒', distinguish: '⭐',
+};
+
+function ActionFeedRow({ action }: { action: RecentAction }) {
+  const color = ACTION_COLORS[action.action] ?? 'text-text-secondary';
+  const icon = ACTION_ICONS[action.action] ?? '·';
+  return (
+    <div className="flex items-center gap-2.5 py-1.5 border-b border-border/30 last:border-0">
+      <span className="text-sm w-5 text-center flex-shrink-0">{icon}</span>
+      <span className={`text-xs font-medium capitalize flex-shrink-0 w-16 ${color}`}>
+        {action.action}
+      </span>
+      <span className="text-text-muted text-xs flex-1 truncate">
+        {action.automated
+          ? <span className="inline-flex items-center gap-0.5"><Zap size={9} className="text-purple-400" />auto</span>
+          : `u/${action.mod}`
+        }
+      </span>
+      <span className="text-text-muted text-xs flex-shrink-0">{relativeTime(action.timestamp)}</span>
     </div>
   );
 }

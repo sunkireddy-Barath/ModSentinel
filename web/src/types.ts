@@ -99,6 +99,14 @@ export interface HealthTrendPoint {
   queueDepth: number;
 }
 
+export interface RecentAction {
+  itemId: string;
+  action: string;
+  mod: string;
+  automated: boolean;
+  timestamp: number;
+}
+
 export interface HealthStats {
   subreddit: string;
   generatedAt: number;
@@ -115,6 +123,7 @@ export interface HealthStats {
   avgReviewTimeMins: number;
   modActivity: Array<{ mod: string; actions: number }>;
   trend: HealthTrendPoint[];
+  recentActions: RecentAction[];
 }
 
 export interface AppConfig {

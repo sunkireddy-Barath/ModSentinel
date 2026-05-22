@@ -1,5 +1,5 @@
 import type { Context } from '@devvit/public-api';
-import type { HealthStats, HealthTrendPoint } from '../types.js';
+import type { HealthStats, HealthTrendPoint, RecentAction } from '../types.js';
 import { REDIS_KEYS, HEALTH_CACHE_TTL_MS } from '../constants.js';
 
 interface CachedHealth {
@@ -27,7 +27,7 @@ export async function computeHealthStats(
 
 async function buildStats(context: Context, subredditName: string): Promise<HealthStats> {
   const actionLogRaw = await context.redis.get(REDIS_KEYS.actionLog(subredditName));
-  const actionLog: Array<{ action: string; mod: string; timestamp: number; itemId: string }> =
+  const actionLog: Array<{ action: string; mod: string; timestamp: number; itemId: string; automated?: boolean }> =
     actionLogRaw ? JSON.parse(actionLogRaw) : [];
 
   const queueRaw = await context.redis.get(REDIS_KEYS.queue(subredditName));
@@ -63,6 +63,14 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
 
   const trend = buildTrend(actionLog);
 
+  const recentActions: RecentAction[] = actionLog.slice(0, 25).map(a => ({
+    itemId: a.itemId,
+    action: a.action,
+    mod: a.mod,
+    automated: a.automated ?? false,
+    timestamp: a.timestamp,
+  }));
+
   const stats: HealthStats = {
     subreddit: subredditName,
     generatedAt: Date.now(),
@@ -88,6 +96,7 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
       .sort(([, a], [, b]) => b - a)
       .map(([mod, actions]) => ({ mod, actions })),
     trend,
+    recentActions,
   };
 
   return stats;
