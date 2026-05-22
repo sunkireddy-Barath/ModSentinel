@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import {
   RefreshCw, CheckCircle, XCircle, Flag, Lock,
   Clock, User, Cpu, MoreHorizontal,
   ChevronDown, ChevronUp, ExternalLink, Loader2,
-  Zap, Square, CheckSquare,
+  Zap, Square, CheckSquare, Keyboard,
 } from 'lucide-react';
 import type { QueueItem, ActionType, RiskLevel } from '../types';
 
@@ -56,6 +56,7 @@ export function Dashboard({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionModal, setActionModal] = useState<{ itemId: string; author: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const filtered = items
     .filter(item => {
@@ -105,6 +106,76 @@ export function Dashboard({
     setSelectedIds(new Set());
   }
 
+  // Keyboard shortcuts — only when not typing in an input
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (actionModal) return;
+
+      const pendingFiltered = filtered.filter(i => i.status === 'pending');
+      const curIdx = expandedId ? pendingFiltered.findIndex(i => i.id === expandedId) : -1;
+
+      switch (e.key) {
+        case 'j':
+        case 'ArrowDown': {
+          if (!pendingFiltered.length) return;
+          e.preventDefault();
+          const next = curIdx < pendingFiltered.length - 1 ? curIdx + 1 : 0;
+          setExpandedId(pendingFiltered[next].id);
+          break;
+        }
+        case 'k':
+        case 'ArrowUp': {
+          if (!pendingFiltered.length) return;
+          e.preventDefault();
+          const prev = curIdx > 0 ? curIdx - 1 : pendingFiltered.length - 1;
+          setExpandedId(pendingFiltered[prev].id);
+          break;
+        }
+        case 'a': {
+          if (!expandedId) return;
+          const item = filtered.find(i => i.id === expandedId);
+          if (item?.status === 'pending') onAction(expandedId, 'approve');
+          break;
+        }
+        case 'r': {
+          if (!expandedId) return;
+          const item = filtered.find(i => i.id === expandedId);
+          if (item?.status === 'pending') onAction(expandedId, 'remove');
+          break;
+        }
+        case 's': {
+          if (!expandedId) return;
+          const item = filtered.find(i => i.id === expandedId);
+          if (item && !item.aiScore) onScore(item);
+          break;
+        }
+        case 'x': {
+          if (!expandedId) return;
+          const item = filtered.find(i => i.id === expandedId);
+          if (item?.status === 'pending') {
+            setSelectedIds(prev => {
+              const s = new Set(prev);
+              s.has(expandedId) ? s.delete(expandedId) : s.add(expandedId);
+              return s;
+            });
+          }
+          break;
+        }
+        case 'Escape':
+          if (shortcutsOpen) { setShortcutsOpen(false); return; }
+          setExpandedId(null);
+          break;
+        case '?':
+          setShortcutsOpen(v => !v);
+          break;
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [actionModal, filtered, expandedId, shortcutsOpen, onAction, onScore]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -130,6 +201,13 @@ export function Dashboard({
               Score All ({unscoredCount})
             </button>
           )}
+          <button
+            onClick={() => setShortcutsOpen(true)}
+            title="Keyboard shortcuts (?)"
+            className="flex items-center gap-1 text-text-muted hover:text-text-secondary text-xs transition-colors"
+          >
+            <Keyboard size={13} />
+          </button>
           <button
             onClick={onRefresh}
             disabled={loading}
@@ -247,6 +325,49 @@ export function Dashboard({
               className="text-xs text-text-muted hover:text-text-secondary px-2 py-1.5 transition-colors"
             >
               Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard shortcuts help */}
+      {shortcutsOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => setShortcutsOpen(false)}
+        >
+          <div
+            className="bg-bg-card border border-border rounded-2xl p-6 w-full max-w-xs animate-slide-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-text-primary font-bold">Keyboard Shortcuts</h3>
+              <Keyboard size={16} className="text-text-muted" />
+            </div>
+            <div className="space-y-2">
+              {[
+                ['j / ↓', 'Next pending item'],
+                ['k / ↑', 'Previous pending item'],
+                ['a', 'Approve focused item'],
+                ['r', 'Remove focused item'],
+                ['s', 'AI-score focused item'],
+                ['x', 'Toggle select focused item'],
+                ['Esc', 'Collapse / close'],
+                ['?', 'Toggle this help'],
+              ].map(([key, desc]) => (
+                <div key={key} className="flex items-center justify-between">
+                  <kbd className="bg-bg-tertiary border border-border text-text-secondary text-xs px-2 py-0.5 rounded font-mono">
+                    {key}
+                  </kbd>
+                  <span className="text-text-muted text-xs">{desc}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setShortcutsOpen(false)}
+              className="mt-5 w-full py-2 rounded-xl border border-border text-text-secondary hover:text-text-primary text-sm transition-colors"
+            >
+              Close
             </button>
           </div>
         </div>
