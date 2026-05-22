@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.devvit/
+web/node_modules/
+web/dist/
+*.env
+*.env.local
+.DS_Store
+*.log
