@@ -1,4 +1,3 @@
-import type { Context } from '@devvit/public-api';
 import type { AIScore, RiskLevel } from '../types.js';
 import { ANTHROPIC_MODEL, ANTHROPIC_SCORING_TOKENS, RISK_THRESHOLDS } from '../constants.js';
 
@@ -35,7 +34,6 @@ function getRiskLevel(score: number): RiskLevel {
 }
 
 export async function scoreContent(
-  context: Context,
   input: ScoringInput,
 ): Promise<AIScore> {
   const textToScore = input.title
@@ -47,7 +45,7 @@ export async function scoreContent(
   let parsed: { score: number; aiGenerated: number; spamScore: number; signals: string[]; reasoning: string };
 
   try {
-    const resp = await context.fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'x-api-key': input.apiKey,

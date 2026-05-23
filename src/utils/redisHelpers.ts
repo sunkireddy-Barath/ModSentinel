@@ -105,7 +105,7 @@ export async function buildQueueItemFromPost(
       id: postId,
       type: 'post',
       title: post.title,
-      body: post.body ?? post.selftext ?? '',
+      body: post.body ?? '',
       author: post.authorName ?? '[deleted]',
       authorKarma: (author?.linkKarma ?? 0) + (author?.commentKarma ?? 0),
       authorAge: accountAgeDays,
@@ -145,7 +145,7 @@ export async function buildQueueItemFromComment(
       url: `https://reddit.com${comment.permalink}`,
       permalink: comment.permalink,
       createdAt: comment.createdAt.getTime(),
-      reportCount: comment.numberOfReports ?? 0,
+      reportCount: comment.numReports ?? 0,
       reportReasons: [],
       status: 'pending',
     };

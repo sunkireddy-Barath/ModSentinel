@@ -46,19 +46,31 @@ export async function handleModAction(
         await context.reddit.approve(input.itemId);
         break;
 
-      case 'lock':
-        await context.reddit.lock(input.itemId);
+      case 'lock': {
+        const thing = input.itemId.startsWith('t1_')
+          ? await context.reddit.getCommentById(input.itemId)
+          : await context.reddit.getPostById(input.itemId);
+        await thing.lock();
         break;
+      }
 
-      case 'distinguish':
-        await context.reddit.distinguish(input.itemId, false);
+      case 'distinguish': {
+        const thing = input.itemId.startsWith('t1_')
+          ? await context.reddit.getCommentById(input.itemId)
+          : await context.reddit.getPostById(input.itemId);
+        await thing.distinguish(false);
         break;
+      }
 
-      case 'report':
-        await context.reddit.report(input.itemId, {
-          userReportReason: input.reason ?? 'Flagged by ModSentinel',
+      case 'report': {
+        const thing = input.itemId.startsWith('t1_')
+          ? await context.reddit.getCommentById(input.itemId)
+          : await context.reddit.getPostById(input.itemId);
+        await context.reddit.report(thing, {
+          reason: input.reason ?? 'Flagged by ModSentinel',
         });
         break;
+      }
 
       case 'ban': {
         if (!input.subredditName || !input.authorUsername) {

@@ -91,8 +91,7 @@ Devvit.addCustomPostType({
     return (
       <vstack height="100%" width="100%" backgroundColor="#0f1116">
         <webview
-          id={webView.id}
-          url={webView.url}
+          url="index.html"
           width="100%"
           height="100%"
           grow
@@ -148,7 +147,7 @@ async function routeMessage(
       const sub = await context.reddit.getCurrentSubreddit();
       const apiKey = await context.settings.get<string>('anthropic-api-key');
 
-      const score = await scoreContent(context, {
+      const score = await scoreContent({
         content: body,
         title,
         apiKey: apiKey ?? '',
@@ -250,7 +249,7 @@ async function routeMessage(
             user: thingId,
             note: content,
             label: (labelMap[label] ?? 'HELPFUL') as Parameters<typeof context.reddit.addModNote>[0]['label'],
-            redditId: thingId,
+            redditId: thingId as `t1_${string}` | `t3_${string}`,
           });
         } catch {
           // Native mod notes may be unavailable; Redis note is still saved
@@ -449,7 +448,7 @@ Devvit.addTrigger({
     // Score if API key present
     const apiKey = await context.settings.get<string>('anthropic-api-key');
     if (apiKey) {
-      const score = await scoreContent(context, {
+      const score = await scoreContent({
         content: item.body,
         title: item.title,
         apiKey,
@@ -497,7 +496,7 @@ Devvit.addTrigger({
 
     const apiKey = await context.settings.get<string>('anthropic-api-key');
     if (apiKey) {
-      const score = await scoreContent(context, {
+      const score = await scoreContent({
         content: item.body,
         apiKey,
         authorAge: item.authorAge,
@@ -534,7 +533,7 @@ Devvit.addSchedulerJob({
     });
 
     // Pin the post for mods
-    await context.reddit.distinguish(post.id, true);
+    await post.distinguish(true);
   },
 });
 
@@ -622,8 +621,8 @@ Devvit.addMenuItem({
     context.ui.showToast({ text: '🤖 Scoring post…' });
 
     const post = await context.reddit.getPostById(event.targetId);
-    const score = await scoreContent(context, {
-      content: post.body ?? post.selftext ?? '',
+    const score = await scoreContent({
+      content: post.body ?? '',
       title: post.title,
       apiKey,
     });

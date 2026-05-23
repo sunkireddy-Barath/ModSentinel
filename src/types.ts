@@ -139,7 +139,7 @@ export interface UserActivity {
   title: string;
   body: string;
   createdAt: number;
-  status: 'active' | 'removed' | 'approved';
+  status: 'pending' | 'approved' | 'removed' | 'held';
   aiScore?: number;
   permalink: string;
 }
