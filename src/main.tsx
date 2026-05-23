@@ -411,12 +411,14 @@ async function routeMessage(
         await context.redis.set(rulesKey, JSON.stringify(DEFAULT_RULES));
       }
 
-      // Schedule weekly health digest (Mondays 9am UTC)
-      await context.scheduler.runJob({
-        name: 'weekly-health-digest',
-        cron: '0 9 * * 1',
-        data: { subreddit: sub?.name ?? '' },
-      });
+      // Schedule weekly health digest once — skip if already scheduled
+      if (!existing.setupComplete) {
+        await context.scheduler.runJob({
+          name: 'weekly-health-digest',
+          cron: '0 9 * * 1',
+          data: { subreddit: sub?.name ?? '' },
+        });
+      }
 
       send({ type: 'SETUP_COMPLETE' });
       break;
