@@ -303,18 +303,43 @@ async function routeMessage(
       const sub = await context.reddit.getCurrentSubreddit();
 
       try {
-        const redditUser = await context.reddit.getUserByUsername(username);
+        const [redditUser, storedNotes, queueItems, actionLogRaw] = await Promise.all([
+          context.reddit.getUserByUsername(username),
+          context.redis.get(REDIS_KEYS.notes(sub?.name ?? '', username)),
+          loadQueue(context, sub?.name ?? ''),
+          context.redis.get(REDIS_KEYS.actionLog(sub?.name ?? '')),
+        ]);
+
         const accountAgeDays = Math.floor(
           (Date.now() - (redditUser?.createdAt?.getTime() ?? Date.now())) / 86400000,
         );
 
-        const notesKey = REDIS_KEYS.notes(sub?.name ?? '', username);
-        const storedNotes = await context.redis.get(notesKey);
         const notes: ModNote[] = storedNotes ? (JSON.parse(storedNotes) as ModNote[]) : [];
-
-        // Get recent queue items by this user
-        const queueItems = await loadQueue(context, sub?.name ?? '');
         const userItems = queueItems.filter(i => i.author === username);
+        const userItemIds = new Set(userItems.map(i => i.id));
+
+        // Build modHistory from action log cross-referenced with this user's queue items
+        type LogEntry = { itemId: string; action: string; reason?: string; mod: string; timestamp: number };
+        const actionLog: LogEntry[] = actionLogRaw ? (JSON.parse(actionLogRaw) as LogEntry[]) : [];
+        const modHistory = actionLog
+          .filter(a => userItemIds.has(a.itemId))
+          .slice(0, 20)
+          .map(a => ({ action: a.action, mod: a.mod, reason: a.reason ?? '', timestamp: a.timestamp }));
+
+        const isModerated = modHistory.some(h => h.action === 'ban' || h.action === 'mute');
+
+        // Behavior patterns derived from real activity
+        const behaviorPatterns: string[] = [];
+        if (userItems.length >= 5) behaviorPatterns.push('High posting frequency');
+        const commentCount = userItems.filter(i => i.type === 'comment').length;
+        const postCount = userItems.filter(i => i.type === 'post').length;
+        if (commentCount > postCount && commentCount > 2) behaviorPatterns.push('Comment-heavy activity');
+        if (userItems.some(i => (i.aiScore?.spamScore ?? 0) >= 60)) behaviorPatterns.push('Spam pattern detected');
+        if (modHistory.length > 0) behaviorPatterns.push(`${modHistory.length} prior mod action${modHistory.length !== 1 ? 's' : ''}`);
+
+        const overallRisk: AIScore['riskLevel'] =
+          userItems.some(i => (i.aiScore?.score ?? 0) >= 80) || isModerated ? 'HIGH' :
+          accountAgeDays < 30 || modHistory.length > 0 ? 'MEDIUM' : 'LOW';
 
         send({
           type: 'USER_DATA',
@@ -322,7 +347,7 @@ async function routeMessage(
             username,
             karma: (redditUser?.linkKarma ?? 0) + (redditUser?.commentKarma ?? 0),
             accountAgeDays,
-            isModerated: false,
+            isModerated,
             notes,
             recentActivity: userItems.map(i => ({
               id: i.id,
@@ -334,18 +359,14 @@ async function routeMessage(
               aiScore: i.aiScore?.score,
               permalink: i.permalink,
             })),
-            modHistory: [],
+            modHistory,
             riskProfile: {
-              overallRisk: userItems.some(i => (i.aiScore?.score ?? 0) >= 80)
-                ? 'HIGH'
-                : accountAgeDays < 30
-                ? 'MEDIUM'
-                : 'LOW',
-              spamSignals: accountAgeDays < 7 ? ['New account'] : [],
+              overallRisk,
+              spamSignals: accountAgeDays < 7 ? ['New account (<7 days)'] : accountAgeDays < 30 ? ['New account (<30 days)'] : [],
               aiGenSignals: userItems.filter(i => (i.aiScore?.aiGenerated ?? 0) >= 70).length > 0
                 ? ['AI content suspected']
                 : [],
-              behaviorPatterns: [],
+              behaviorPatterns,
             },
           },
         });

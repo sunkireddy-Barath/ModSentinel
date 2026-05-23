@@ -26,13 +26,19 @@ export async function computeHealthStats(
 }
 
 async function buildStats(context: Context, subredditName: string): Promise<HealthStats> {
-  const actionLogRaw = await context.redis.get(REDIS_KEYS.actionLog(subredditName));
+  const [actionLogRaw, rulesRaw, queueRaw] = await Promise.all([
+    context.redis.get(REDIS_KEYS.actionLog(subredditName)),
+    context.redis.get(REDIS_KEYS.rules(subredditName)),
+    context.redis.get(REDIS_KEYS.queue(subredditName)),
+  ]);
   const actionLog: Array<{ action: string; mod: string; timestamp: number; itemId: string; automated?: boolean }> =
     actionLogRaw ? JSON.parse(actionLogRaw) : [];
-
-  const queueRaw = await context.redis.get(REDIS_KEYS.queue(subredditName));
-  const queue: Array<{ id: string; status: string; aiScore?: { aiGenerated: number }; author: string; type: string }> =
-    queueRaw ? JSON.parse(queueRaw) : [];
+  const rules: Array<{ name: string; matchCount?: number }> =
+    rulesRaw ? JSON.parse(rulesRaw) : [];
+  const queue: Array<{
+    id: string; status: string; author: string; type: string; createdAt: number;
+    aiScore?: { aiGenerated: number; scoredAt?: number };
+  }> = queueRaw ? JSON.parse(queueRaw) : [];
 
   const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recentActions = actionLog.filter(a => a.timestamp > oneWeekAgo);
@@ -61,9 +67,24 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
     }
   }
 
-  const trend = buildTrend(actionLog);
+  // Compute average review time from action timestamps vs item creation times
+  const reviewTimes: number[] = [];
+  for (const a of recentActions) {
+    if (a.action === 'remove' || a.action === 'approve') {
+      const item = queue.find(q => q.id === a.itemId);
+      if (item?.createdAt) {
+        const diffMins = (a.timestamp - item.createdAt) / (1000 * 60);
+        if (diffMins > 0 && diffMins < 24 * 60) reviewTimes.push(diffMins);
+      }
+    }
+  }
+  const avgReviewTimeMins = reviewTimes.length > 0
+    ? Math.round((reviewTimes.reduce((s, t) => s + t, 0) / reviewTimes.length) * 10) / 10
+    : 0;
 
-  const recentActions: RecentAction[] = actionLog.slice(0, 25).map(a => ({
+  const trend = buildTrend(actionLog, queue);
+
+  const recentActionsList: RecentAction[] = actionLog.slice(0, 25).map(a => ({
     itemId: a.itemId,
     action: a.action,
     mod: a.mod,
@@ -81,22 +102,22 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
     removalRate: totalActioned > 0 ? Math.round((removedPosts / totalActioned) * 100) : 0,
     aiGeneratedSuspected: aiSuspected,
     aiGeneratedPercent: queue.length > 0 ? Math.round((aiSuspected / queue.length) * 100) : 0,
-    topViolations: [
-      { rule: 'New Account Spam Guard', count: Math.floor(removedPosts * 0.4) },
-      { rule: 'AI Content Filter', count: aiSuspected },
-      { rule: 'High Report Count', count: Math.floor(removedPosts * 0.2) },
-    ].filter(v => v.count > 0),
+    topViolations: rules
+      .filter(r => (r.matchCount ?? 0) > 0)
+      .sort((a, b) => (b.matchCount ?? 0) - (a.matchCount ?? 0))
+      .slice(0, 5)
+      .map(r => ({ rule: r.name, count: r.matchCount ?? 0 })),
     mostActioned: Object.entries(userActionMap)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([username, count]) => ({ username, count })),
     queueDepth: queue.filter(i => i.status === 'pending').length,
-    avgReviewTimeMins: 4.5,
+    avgReviewTimeMins,
     modActivity: Object.entries(modActivityMap)
       .sort(([, a], [, b]) => b - a)
       .map(([mod, actions]) => ({ mod, actions })),
     trend,
-    recentActions,
+    recentActions: recentActionsList,
   };
 
   return stats;
@@ -104,6 +125,7 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
 
 function buildTrend(
   actionLog: Array<{ action: string; timestamp: number }>,
+  queue: Array<{ aiScore?: { aiGenerated: number; scoredAt?: number } }>,
 ): HealthTrendPoint[] {
   const days = 7;
   const points: HealthTrendPoint[] = [];
@@ -117,11 +139,18 @@ function buildTrend(
       a => a.timestamp >= dayStart && a.timestamp < dayEnd,
     );
 
+    const dayAiSuspected = queue.filter(
+      q => q.aiScore?.scoredAt !== undefined &&
+           q.aiScore.scoredAt >= dayStart &&
+           q.aiScore.scoredAt < dayEnd &&
+           q.aiScore.aiGenerated >= 70,
+    ).length;
+
     points.push({
       date,
       removed: dayActions.filter(a => a.action === 'remove').length,
       approved: dayActions.filter(a => a.action === 'approve').length,
-      aiSuspected: 0,
+      aiSuspected: dayAiSuspected,
       queueDepth: 0,
     });
   }

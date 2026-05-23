@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ModSentinel — Dev Test</title>
+  <link rel="stylesheet" href="/assets/index-DEO551z-.css" />
+  <script>
+  // Override window.parent before React loads so postMessage calls are intercepted
+  const NOW = Date.now();
+  const HR = 3600000;
+  const DAY = 86400000;
+
+  const queueItems = [
+    {
+      id: 't3_rk92a1', type: 'post',
+      title: 'Buy premium AI writing tools — 50% off today only!',
+      body: 'Certainly! I understand your need for high-quality content. In conclusion, our AI writing tool delivers exceptional results. Furthermore, it is worth noting that thousands of users have benefited.',
+      author: 'promo_bot_2024', authorKarma: 4, authorAge: 2,
+      subreddit: 'learnprogramming',
+      url: 'https://reddit.com/r/learnprogramming/comments/rk92a1',
+      permalink: '/r/learnprogramming/comments/rk92a1',
+      createdAt: NOW - 1.2*HR, reportCount: 4, reportReasons: ['Spam','Promotion'],
+      status: 'pending',
+      aiScore: { score:94, riskLevel:'CRITICAL', signals:['New account (<7 days)','AI-typical phrases','Multiple spam signals','Very low karma'], aiGenerated:97, spamScore:91, reasoning:'Near-certain AI-generated spam from a 2-day-old account with 4 community reports.', scoredAt: NOW - HR }
+    },
+    {
+      id: 't1_cm44xp', type: 'comment',
+      body: 'As an AI language model, I cannot provide specific investment advice. However, in summary, you should diversify your portfolio. It is worth noting that past performance does not guarantee future results.',
+      author: 'helpful_advisor99', authorKarma: 23, authorAge: 8,
+      subreddit: 'learnprogramming',
+      url: 'https://reddit.com/r/learnprogramming/comments/xxx/yyy',
+      permalink: '/r/learnprogramming/comments/xxx/yyy',
+      createdAt: NOW - 2.5*HR, reportCount: 1, reportReasons: ['AI content'],
+      status: 'pending',
+      aiScore: { score:82, riskLevel:'HIGH', signals:['AI disclosure phrase','Generic disclaimer language','In conclusion usage'], aiGenerated:88, spamScore:30, reasoning:'Comment explicitly identifies as AI, uses multiple AI-characteristic phrases.', scoredAt: NOW - 2*HR }
+    },
+    {
+      id: 't3_pl71bw', type: 'post',
+      title: 'How do I fix a segfault in my C++ code?',
+      body: 'I have been debugging this for hours. Here is the relevant code snippet: `int* ptr = nullptr; *ptr = 5;` I know this is wrong but I am not sure why the compiler does not catch it. Any help appreciated.',
+      author: 'newbie_dev_2024', authorKarma: 12, authorAge: 45,
+      subreddit: 'learnprogramming',
+      url: 'https://reddit.com/r/learnprogramming/comments/pl71bw',
+      permalink: '/r/learnprogramming/comments/pl71bw',
+      createdAt: NOW - 4*HR, reportCount: 0, reportReasons: [], status: 'pending',
+      aiScore: { score:12, riskLevel:'SAFE', signals:[], aiGenerated:8, spamScore:5, reasoning:'Genuine technical question with specific code. Conversational tone, clear struggle.', scoredAt: NOW - 3.5*HR }
+    },
+    {
+      id: 't3_qm83cc', type: 'post',
+      title: 'The ultimate guide to making money online in 2024',
+      body: 'Click my link in bio. I have been doing this for 3 years. https://example1.com https://example2.com https://example3.com https://example4.com Check all links for free bonuses!',
+      author: 'money_maker_pro', authorKarma: 7, authorAge: 5,
+      subreddit: 'learnprogramming',
+      url: 'https://reddit.com/r/learnprogramming/comments/qm83cc',
+      permalink: '/r/learnprogramming/comments/qm83cc',
+      createdAt: NOW - 6*HR, reportCount: 3, reportReasons: ['Spam','Off-topic'],
+      status: 'pending',
+      aiScore: { score:78, riskLevel:'HIGH', signals:['Multiple URLs (4)','New account (<7 days)','Off-topic content'], aiGenerated:45, spamScore:88, reasoning:'Spam post with 4 external URLs, off-topic for subreddit, new account.', scoredAt: NOW - 5.5*HR }
+    },
+    {
+      id: 't1_xz92pl', type: 'comment',
+      body: 'Thanks for the explanation! That makes sense. I will try updating my pip packages and see if the import error goes away.',
+      author: 'pythonlearner42', authorKarma: 156, authorAge: 180,
+      subreddit: 'learnprogramming',
+      url: 'https://reddit.com/r/learnprogramming/comments/abc/def',
+      permalink: '/r/learnprogramming/comments/abc/def',
+      createdAt: NOW - 8*HR, reportCount: 0, reportReasons: [], status: 'approved',
+      aiScore: { score:6, riskLevel:'SAFE', signals:[], aiGenerated:5, spamScore:3, reasoning:'Genuine follow-up from established account. Natural language.', scoredAt: NOW - 7.5*HR }
+    },
+    {
+      id: 't3_newpost1', type: 'post',
+      title: 'Is Python or JavaScript better for beginners?',
+      body: 'I want to start coding but I am confused about which language to learn first. I have heard both are good. What do you all recommend?',
+      author: 'coding_curious', authorKarma: 0, authorAge: 1,
+      subreddit: 'learnprogramming',
+      url: 'https://reddit.com/r/learnprogramming/comments/newpost1',
+      permalink: '/r/learnprogramming/comments/newpost1',
+      createdAt: NOW - 0.5*HR, reportCount: 0, reportReasons: [], status: 'pending'
+    }
+  ];
+
+  const defaultRules = [
+    { id:'rule_new_account_spam', name:'New Account Spam Guard', description:'Hold posts from accounts younger than 7 days with low karma', enabled:true, appliesTo:'posts', conditionLogic:'AND', conditions:[{field:'account_age',operator:'lt',value:7},{field:'karma',operator:'lt',value:10}], action:{type:'hold',removalReason:'New account review'}, priority:1, matchCount:7 },
+    { id:'rule_ai_content', name:'AI-Generated Content Filter', description:'Report likely AI-generated posts for manual review', enabled:true, appliesTo:'both', conditionLogic:'AND', conditions:[{field:'ai_score',operator:'gte',value:80}], action:{type:'report',reportReason:'Suspected AI-generated content'}, priority:2, matchCount:5 },
+    { id:'rule_spam_burst', name:'Spam Burst Detection', description:'Remove accounts posting too many times in 24 hours', enabled:true, appliesTo:'posts', conditionLogic:'AND', conditions:[{field:'post_count_24h',operator:'gt',value:5}], action:{type:'remove',removalReason:'Spam — excessive posting'}, priority:3, matchCount:1 },
+    { id:'rule_high_reports', name:'Community-Flagged Content', description:'Hold content with 3+ reports', enabled:true, appliesTo:'both', conditionLogic:'AND', conditions:[{field:'report_count',operator:'gte',value:3}], action:{type:'hold',removalReason:'Multiple community reports'}, priority:4, matchCount:3 },
+    { id:'rule_cross_sub_spam', name:'Cross-Subreddit Spam', description:'Flag users posting across many subs', enabled:false, appliesTo:'posts', conditionLogic:'AND', conditions:[{field:'cross_sub_count_24h',operator:'gt',value:8}], action:{type:'report',reportReason:'Cross-subreddit spam'}, priority:5, matchCount:0 },
+  ];
+
+  const healthStats = {
+    subreddit:'learnprogramming', generatedAt: NOW - 5*60*1000,
+    totalPosts:4, totalComments:2, removedPosts:12, removedComments:3,
+    removalRate:43, aiGeneratedSuspected:3, aiGeneratedPercent:50,
+    topViolations:[{rule:'New Account Spam Guard',count:7},{rule:'AI-Generated Content Filter',count:5},{rule:'Community-Flagged Content',count:3},{rule:'Spam Burst Detection',count:1}],
+    mostActioned:[{username:'promo_bot_2024',count:4},{username:'money_maker_pro',count:3},{username:'helpful_advisor99',count:2}],
+    queueDepth:5, avgReviewTimeMins:2.4,
+    modActivity:[{mod:'mod_sarah',actions:18},{mod:'mod_james',actions:12},{mod:'ModSentinel (auto)',actions:9}],
+    trend:[
+      {date:new Date(NOW-6*DAY).toISOString().slice(0,10),removed:2,approved:8,aiSuspected:1,queueDepth:0},
+      {date:new Date(NOW-5*DAY).toISOString().slice(0,10),removed:4,approved:12,aiSuspected:2,queueDepth:0},
+      {date:new Date(NOW-4*DAY).toISOString().slice(0,10),removed:3,approved:9,aiSuspected:1,queueDepth:0},
+      {date:new Date(NOW-3*DAY).toISOString().slice(0,10),removed:5,approved:7,aiSuspected:3,queueDepth:0},
+      {date:new Date(NOW-2*DAY).toISOString().slice(0,10),removed:7,approved:15,aiSuspected:4,queueDepth:0},
+      {date:new Date(NOW-1*DAY).toISOString().slice(0,10),removed:6,approved:11,aiSuspected:3,queueDepth:0},
+      {date:new Date(NOW).toISOString().slice(0,10),removed:3,approved:4,aiSuspected:2,queueDepth:0},
+    ],
+    recentActions:[
+      {itemId:'t3_rk92a1',action:'remove',mod:'mod_sarah',automated:false,timestamp:NOW-20*60000},
+      {itemId:'t3_qm83cc',action:'remove',mod:'ModSentinel (auto)',automated:true,timestamp:NOW-35*60000},
+      {itemId:'t1_cm44xp',action:'report',mod:'mod_james',automated:false,timestamp:NOW-55*60000},
+      {itemId:'t3_pl71bw',action:'approve',mod:'mod_sarah',automated:false,timestamp:NOW-1.5*HR},
+      {itemId:'t1_xz92pl',action:'approve',mod:'ModSentinel (auto)',automated:true,timestamp:NOW-2*HR},
+    ]
+  };
+
+  function dispatchMsg(data) {
+    window.dispatchEvent(new MessageEvent('message', { data, origin: window.location.origin, source: window }));
+  }
+
+  // Intercept all outgoing postMessage calls (app calls window.parent.postMessage)
+  const fakeParent = {
+    postMessage(msg) {
+      if (!msg || !msg.type) return;
+      switch(msg.type) {
+        case 'INIT':
+          setTimeout(() => dispatchMsg({ type:'INIT_DATA', config:{ subreddit:'learnprogramming', setupComplete:true, anthropicApiKeySet:true, autoScoreEnabled:true, autoActionEnabled:false, installedAt:NOW-7*DAY, installedBy:'mod_sarah' }, username:'mod_sarah', isMod:true, subreddit:'learnprogramming' }), 50);
+          break;
+        case 'LOAD_QUEUE':
+          setTimeout(() => dispatchMsg({ type:'QUEUE_DATA', items:queueItems, total:queueItems.length }), 100);
+          break;
+        case 'LOAD_RULES':
+          setTimeout(() => dispatchMsg({ type:'RULES_DATA', rules:defaultRules }), 80);
+          break;
+        case 'LOAD_HEALTH':
+          setTimeout(() => dispatchMsg({ type:'HEALTH_DATA', stats:healthStats }), 150);
+          break;
+        case 'SAVE_RULES':
+          setTimeout(() => dispatchMsg({ type:'RULES_SAVED', rules:msg.rules, success:true }), 80);
+          break;
+        case 'TAKE_ACTION':
+          setTimeout(() => dispatchMsg({ type:'ACTION_COMPLETE', itemId:msg.itemId, action:msg.action, success:true }), 200);
+          break;
+        case 'SCORE_ITEM':
+          setTimeout(() => dispatchMsg({ type:'SCORE_RESULT', itemId:msg.itemId, score:{ score:91, riskLevel:'CRITICAL', signals:['AI-typical language','New account','Spam URL pattern'], aiGenerated:95, spamScore:88, reasoning:'High AI probability with multiple spam signals.', scoredAt:Date.now() }}), 600);
+          break;
+        case 'GET_NOTES':
+          setTimeout(() => dispatchMsg({ type:'NOTES_DATA', thingId:msg.thingId, notes:[] }), 100);
+          break;
+        case 'ADD_NOTE':
+          setTimeout(() => dispatchMsg({ type:'NOTE_SAVED', note:{ id:'note_'+Date.now(), thingId:msg.thingId, thingType:msg.thingType, authorMod:'mod_sarah', content:msg.content, label:msg.label, createdAt:Date.now() }}), 150);
+          break;
+        case 'LOAD_USER': {
+          const ui = queueItems.filter(i => i.author === msg.username);
+          const userItemIds = new Set(ui.map(i => i.id));
+          const mhist = healthStats.recentActions
+            .filter(a => userItemIds.has(a.itemId))
+            .map(a => ({ action: a.action, mod: a.mod, reason: '', timestamp: a.timestamp }));
+          const isModerated = mhist.some(h => h.action === 'ban' || h.action === 'mute');
+          const commentCount = ui.filter(i => i.type === 'comment').length;
+          const postCount = ui.filter(i => i.type === 'post').length;
+          const patterns = [];
+          if (ui.length >= 5) patterns.push('High posting frequency');
+          if (commentCount > postCount && commentCount > 2) patterns.push('Comment-heavy activity');
+          if (ui.some(i => (i.aiScore?.spamScore ?? 0) >= 60)) patterns.push('Spam pattern detected');
+          if (mhist.length > 0) patterns.push(`${mhist.length} prior mod action${mhist.length !== 1 ? 's' : ''}`);
+          const userData = { promo_bot_2024:{karma:4,age:2}, helpful_advisor99:{karma:23,age:8}, newbie_dev_2024:{karma:12,age:45}, money_maker_pro:{karma:7,age:5}, pythonlearner42:{karma:156,age:180}, coding_curious:{karma:0,age:1} };
+          const u = userData[msg.username] ?? { karma:50, age:90 };
+          const overallRisk = ui.some(i => (i.aiScore?.score ?? 0) >= 80) || isModerated ? 'HIGH' : u.age < 30 || mhist.length > 0 ? 'MEDIUM' : 'LOW';
+          const spamSigs = u.age < 7 ? ['New account (<7 days)'] : u.age < 30 ? ['New account (<30 days)'] : [];
+          const aiSigs = ui.filter(i => (i.aiScore?.aiGenerated ?? 0) >= 70).length > 0 ? ['AI content suspected'] : [];
+          setTimeout(() => dispatchMsg({ type:'USER_DATA', user:{ username:msg.username, karma:u.karma, accountAgeDays:u.age, isModerated, notes:[], recentActivity:ui.map(i=>({id:i.id,type:i.type,title:i.title||'',body:i.body,createdAt:i.createdAt,status:i.status,aiScore:i.aiScore?.score,permalink:i.permalink})), modHistory:mhist, riskProfile:{ overallRisk, spamSignals:spamSigs, aiGenSignals:aiSigs, behaviorPatterns:patterns }}}), 200);
+          break;
+        }
+        case 'GET_CONFIG':
+          dispatchMsg({ type:'CONFIG_DATA', config:{ subreddit:'learnprogramming', setupComplete:true, anthropicApiKeySet:true, autoScoreEnabled:true, autoActionEnabled:false, installedAt:NOW-7*DAY, installedBy:'mod_sarah' }});
+          break;
+        case 'SAVE_CONFIG':
+          dispatchMsg({ type:'CONFIG_SAVED', success:true });
+          break;
+      }
+    }
+  };
+
+  // Override window.parent before the module scripts load
+  try {
+    Object.defineProperty(window, 'parent', { get() { return fakeParent; }, configurable: true });
+  } catch(e) {
+    window.__fakeParent = fakeParent;
+  }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/assets/index-B90bh8-o.js"></script>
+</body>
+</html>
