@@ -8,10 +8,23 @@ export function useDevvit(onMessage: MessageHandler) {
   handlerRef.current = onMessage;
 
   useEffect(() => {
-    const listener = (event: MessageEvent<DevvitToWebView>) => {
-      const data = event.data;
-      if (data && typeof data === 'object' && 'type' in data) {
-        handlerRef.current(data);
+    const listener = (event: MessageEvent) => {
+      const raw = event.data as Record<string, unknown>;
+      if (!raw || typeof raw !== 'object') return;
+
+      let payload: unknown;
+
+      if (raw.type === 'devvit-message') {
+        // Real Devvit runtime: messages arrive wrapped as { type: 'devvit-message', data: { message: payload } }
+        const inner = raw.data as Record<string, unknown> | undefined;
+        payload = inner?.message;
+      } else {
+        // Devtest / standalone browser mode: message is sent directly
+        payload = raw;
+      }
+
+      if (payload && typeof payload === 'object' && 'type' in payload) {
+        handlerRef.current(payload as DevvitToWebView);
       }
     };
     window.addEventListener('message', listener);

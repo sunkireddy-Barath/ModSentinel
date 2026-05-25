@@ -1,7 +1,5 @@
-/** @jsx Devvit.createElement */
-/** @jsxFrag Devvit.Fragment */
-import Devvit, { useState, useWebView } from '@devvit/public-api';
-import type { Context } from '@devvit/public-api';
+import { Devvit, useState, useWebView } from '@devvit/public-api';
+import type { Context, JSONValue } from '@devvit/public-api';
 import type {
   WebViewToDevvit,
   DevvitToWebView,
@@ -10,6 +8,7 @@ import type {
   AppConfig,
   QueueItem,
   AIScore,
+  HealthStats,
 } from './types.js';
 import { REDIS_KEYS, DEFAULT_RULES } from './constants.js';
 import { scoreContent } from './utils/aiScorer.js';
@@ -25,6 +24,7 @@ import {
   checkIsMod,
   buildQueueItemFromPost,
   buildQueueItemFromComment,
+  trackUserActivity,
 } from './utils/redisHelpers.js';
 
 Devvit.configure({
@@ -71,19 +71,20 @@ Devvit.addCustomPostType({
   description: 'AI-powered moderation command center',
   height: 'tall',
   render: (context: Context) => {
-    const [isLoading, setIsLoading] = useState(true);
-
-    const webView = useWebView<WebViewToDevvit, DevvitToWebView>({
+    useWebView({
       url: 'index.html',
-      onMessage: async (message: WebViewToDevvit) => {
+      onMessage: async (rawMsg: JSONValue, hook) => {
+        const message = rawMsg as unknown as WebViewToDevvit;
         try {
-          await routeMessage(message, context, (msg) => webView.postMessage(msg));
+          await routeMessage(message, context, (msg) =>
+            hook.postMessage(msg as unknown as JSONValue),
+          );
         } catch (err) {
-          webView.postMessage({
+          hook.postMessage({
             type: 'ERROR',
             message: err instanceof Error ? err.message : 'An unexpected error occurred',
             code: 'UNHANDLED',
-          });
+          } as unknown as JSONValue);
         }
       },
     });
@@ -430,23 +431,60 @@ async function routeMessage(
   }
 }
 
+// ─── AppInstall Trigger ───────────────────────────────────────────────────────
+
+Devvit.addTrigger({
+  event: 'AppInstall',
+  onEvent: async (event, context) => {
+    const subredditName = event.subreddit?.name;
+    if (!subredditName) return;
+
+    const rulesKey = REDIS_KEYS.rules(subredditName);
+    const existingRules = await context.redis.get(rulesKey);
+    if (!existingRules) {
+      await context.redis.set(rulesKey, JSON.stringify(DEFAULT_RULES));
+    }
+
+    const configKey = REDIS_KEYS.config(subredditName);
+    const existingConfig = await context.redis.get(configKey);
+    if (!existingConfig) {
+      const config: AppConfig = {
+        subreddit: subredditName,
+        setupComplete: false,
+        anthropicApiKeySet: false,
+        autoScoreEnabled: true,
+        autoActionEnabled: false,
+        installedAt: Date.now(),
+        installedBy: event.installer?.name ?? 'unknown',
+      };
+      await context.redis.set(configKey, JSON.stringify(config));
+    }
+  },
+});
+
 // ─── PostCreate Trigger ───────────────────────────────────────────────────────
 
 Devvit.addTrigger({
   event: 'PostCreate',
   onEvent: async (event, context) => {
-    const subredditName = event.post.subredditName;
-    const config = await getConfig(context);
+    const ctx = context as unknown as Context;
+    const subredditName = event.subreddit?.name ?? '';
+    if (!subredditName || !event.post?.id) return;
+
+    const config = await getConfig(ctx);
+
+    if (event.author?.name) {
+      await trackUserActivity(ctx, subredditName, event.author.name, 'post');
+    }
 
     if (!config.autoScoreEnabled) return;
 
-    const item = await buildQueueItemFromPost(context, event.post.id);
+    const item = await buildQueueItemFromPost(ctx, event.post.id);
     if (!item) return;
 
-    await upsertQueueItem(context, subredditName, item);
+    await upsertQueueItem(ctx, subredditName, item);
 
-    // Score if API key present
-    const apiKey = await context.settings.get<string>('anthropic-api-key');
+    const apiKey = await ctx.settings.get<string>('anthropic-api-key');
     if (apiKey) {
       const score = await scoreContent({
         content: item.body,
@@ -457,19 +495,14 @@ Devvit.addTrigger({
       });
 
       item.aiScore = score;
-      await upsertQueueItem(context, subredditName, item);
+      await upsertQueueItem(ctx, subredditName, item);
 
-      // Apply rules if auto-action enabled
       if (config.autoActionEnabled) {
-        const { matched } = await evaluateRules(context, item, score, subredditName);
+        const { matched } = await evaluateRules(ctx, item, score, subredditName);
         if (matched) {
-          await applyRuleAction(context, item.id, item.author, subredditName, matched);
-          await updateQueueItemStatus(
-            context,
-            subredditName,
-            item.id,
-            matched.action.type === 'approve' ? 'approved' : 'removed',
-          );
+          await applyRuleAction(ctx, item.id, item.author, subredditName, matched);
+          await updateQueueItemStatus(ctx, subredditName, item.id,
+            matched.action.type === 'approve' ? 'approved' : 'removed');
         }
       }
     }
@@ -481,20 +514,26 @@ Devvit.addTrigger({
 Devvit.addTrigger({
   event: 'CommentCreate',
   onEvent: async (event, context) => {
-    const subredditName = event.comment.subredditName;
-    const config = await getConfig(context);
+    const ctx = context as unknown as Context;
+    const subredditName = event.subreddit?.name ?? '';
+    if (!subredditName || !event.comment?.id) return;
+
+    const config = await getConfig(ctx);
+
+    if (event.comment.author) {
+      await trackUserActivity(ctx, subredditName, event.comment.author, 'comment');
+    }
 
     if (!config.autoScoreEnabled) return;
 
-    const item = await buildQueueItemFromComment(context, event.comment.id);
+    const item = await buildQueueItemFromComment(ctx, event.comment.id);
     if (!item) return;
 
-    // Only score comments with 100+ characters to avoid noise
     if (item.body.length < 100) return;
 
-    await upsertQueueItem(context, subredditName, item);
+    await upsertQueueItem(ctx, subredditName, item);
 
-    const apiKey = await context.settings.get<string>('anthropic-api-key');
+    const apiKey = await ctx.settings.get<string>('anthropic-api-key');
     if (apiKey) {
       const score = await scoreContent({
         content: item.body,
@@ -504,13 +543,78 @@ Devvit.addTrigger({
       });
 
       item.aiScore = score;
-      await upsertQueueItem(context, subredditName, item);
+      await upsertQueueItem(ctx, subredditName, item);
 
       if (config.autoActionEnabled) {
-        const { matched } = await evaluateRules(context, item, score, subredditName);
+        const { matched } = await evaluateRules(ctx, item, score, subredditName);
         if (matched) {
-          await applyRuleAction(context, item.id, item.author, subredditName, matched);
+          await applyRuleAction(ctx, item.id, item.author, subredditName, matched);
         }
+      }
+    }
+  },
+});
+
+// ─── PostReport Trigger ───────────────────────────────────────────────────────
+
+Devvit.addTrigger({
+  event: 'PostReport',
+  onEvent: async (event, context) => {
+    const ctx = context as unknown as Context;
+    const subredditName = event.subreddit?.name;
+    const postId = event.post?.id;
+    if (!subredditName || !postId) return;
+
+    const item = await buildQueueItemFromPost(ctx, postId);
+    if (!item) return;
+
+    await upsertQueueItem(ctx, subredditName, item);
+
+    const config = await getConfig(ctx);
+    if (config.autoScoreEnabled) {
+      const apiKey = await ctx.settings.get<string>('anthropic-api-key');
+      if (apiKey && !item.aiScore) {
+        const score = await scoreContent({
+          content: item.body,
+          title: item.title,
+          apiKey,
+          authorAge: item.authorAge,
+          authorKarma: item.authorKarma,
+        });
+        item.aiScore = score;
+        await upsertQueueItem(ctx, subredditName, item);
+      }
+    }
+  },
+});
+
+// ─── CommentReport Trigger ────────────────────────────────────────────────────
+
+Devvit.addTrigger({
+  event: 'CommentReport',
+  onEvent: async (event, context) => {
+    const ctx = context as unknown as Context;
+    const subredditName = event.subreddit?.name;
+    const commentId = event.comment?.id;
+    if (!subredditName || !commentId) return;
+
+    const item = await buildQueueItemFromComment(ctx, commentId);
+    if (!item) return;
+
+    await upsertQueueItem(ctx, subredditName, item);
+
+    const config = await getConfig(ctx);
+    if (config.autoScoreEnabled) {
+      const apiKey = await ctx.settings.get<string>('anthropic-api-key');
+      if (apiKey && !item.aiScore) {
+        const score = await scoreContent({
+          content: item.body,
+          apiKey,
+          authorAge: item.authorAge,
+          authorKarma: item.authorKarma,
+        });
+        item.aiScore = score;
+        await upsertQueueItem(ctx, subredditName, item);
       }
     }
   },
@@ -521,23 +625,23 @@ Devvit.addTrigger({
 Devvit.addSchedulerJob({
   name: 'weekly-health-digest',
   onRun: async (event, context) => {
+    const ctx = context as unknown as Context;
     const { subreddit } = event.data as { subreddit: string };
     if (!subreddit) return;
 
-    const stats = await computeHealthStats(context, subreddit);
+    const stats = await computeHealthStats(ctx, subreddit);
 
-    const post = await context.reddit.submitPost({
+    const post = await ctx.reddit.submitPost({
       title: `📊 ModSentinel Weekly Health Report — r/${subreddit} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
       subredditName: subreddit,
       text: buildHealthDigestText(stats),
     });
 
-    // Pin the post for mods
-    await post.distinguish(true);
+    await post.distinguish();
   },
 });
 
-function buildHealthDigestText(stats: ReturnType<typeof Object.assign>): string {
+function buildHealthDigestText(stats: HealthStats): string {
   return `
 ## ModSentinel Weekly Health Report
 
@@ -555,10 +659,10 @@ function buildHealthDigestText(stats: ReturnType<typeof Object.assign>): string 
 | Suspected AI content | ${stats.aiGeneratedPercent}% of queue |
 
 ### Top Rule Violations
-${stats.topViolations.map((v: { rule: string; count: number }) => `- **${v.rule}**: ${v.count} matches`).join('\n')}
+${stats.topViolations.map(v => `- **${v.rule}**: ${v.count} matches`).join('\n')}
 
 ### Most Actioned Users
-${stats.mostActioned.map((u: { username: string; count: number }) => `- u/${u.username} (${u.count} actions)`).join('\n')}
+${stats.mostActioned.map(u => `- u/${u.username} (${u.count} actions)`).join('\n')}
 
 ---
 *Generated automatically by [ModSentinel](https://developers.reddit.com) — AI-powered mod command center*
@@ -654,7 +758,61 @@ Devvit.addMenuItem({
 
     if (config.dashboardPostId) {
       const dashPost = await context.reddit.getPostById(config.dashboardPostId);
-      context.ui.showToast({ text: `Open the ModSentinel dashboard and search for u/${post.authorName}` });
+      context.ui.showToast({ text: `Open ModSentinel and search for u/${post.authorName}` });
+      await context.ui.navigateTo(dashPost.url);
+    } else {
+      context.ui.showToast({ text: '⚠️ Create a ModSentinel dashboard first (subreddit menu)' });
+    }
+  },
+});
+
+Devvit.addMenuItem({
+  label: '🔍 Score This Comment (ModSentinel)',
+  location: 'comment',
+  forUserType: 'moderator',
+  onPress: async (event, context) => {
+    const apiKey = await context.settings.get<string>('anthropic-api-key');
+    if (!apiKey) {
+      context.ui.showToast({ text: '⚠️ Add your Anthropic API key in app settings first' });
+      return;
+    }
+
+    context.ui.showToast({ text: '🤖 Scoring comment…' });
+
+    const comment = await context.reddit.getCommentById(event.targetId);
+    const score = await scoreContent({
+      content: comment.body,
+      apiKey,
+    });
+
+    const sub = await context.reddit.getCurrentSubreddit();
+    await context.redis.set(REDIS_KEYS.score(sub?.name ?? '', event.targetId), JSON.stringify(score));
+
+    const riskEmoji: Record<string, string> = {
+      CRITICAL: '🔴',
+      HIGH: '🟠',
+      MEDIUM: '🟡',
+      LOW: '🟢',
+      SAFE: '✅',
+    };
+
+    context.ui.showToast({
+      text: `${riskEmoji[score.riskLevel] ?? '⚪'} ${score.riskLevel} — Score: ${score.score}/100 | AI: ${score.aiGenerated}% | Spam: ${score.spamScore}%`,
+    });
+  },
+});
+
+Devvit.addMenuItem({
+  label: '📋 View User in ModSentinel',
+  location: 'comment',
+  forUserType: 'moderator',
+  onPress: async (event, context) => {
+    const comment = await context.reddit.getCommentById(event.targetId);
+    const config = await getConfig(context);
+
+    if (config.dashboardPostId) {
+      const dashPost = await context.reddit.getPostById(config.dashboardPostId);
+      context.ui.showToast({ text: `Open ModSentinel and search for u/${comment.authorName}` });
       await context.ui.navigateTo(dashPost.url);
     } else {
       context.ui.showToast({ text: '⚠️ Create a ModSentinel dashboard first (subreddit menu)' });

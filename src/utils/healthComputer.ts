@@ -43,9 +43,20 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
   const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const recentActions = actionLog.filter(a => a.timestamp > oneWeekAgo);
 
-  const removedPosts = recentActions.filter(a => a.action === 'remove').length;
-  const approvedPosts = recentActions.filter(a => a.action === 'approve').length;
-  const totalActioned = removedPosts + approvedPosts;
+  const removals = recentActions.filter(a => a.action === 'remove');
+  const approvals = recentActions.filter(a => a.action === 'approve');
+
+  const removedPosts = removals.filter(a => {
+    const item = queue.find(q => q.id === a.itemId);
+    return !item || item.type === 'post';
+  }).length;
+
+  const removedCommentsFresh = removals.filter(a => {
+    const item = queue.find(q => q.id === a.itemId);
+    return item?.type === 'comment';
+  }).length;
+
+  const totalActioned = removals.length + approvals.length;
 
   const aiSuspected = queue.filter(
     i => i.aiScore && i.aiScore.aiGenerated >= 70,
@@ -98,8 +109,8 @@ async function buildStats(context: Context, subredditName: string): Promise<Heal
     totalPosts: queue.filter(i => i.type === 'post').length,
     totalComments: queue.filter(i => i.type === 'comment').length,
     removedPosts,
-    removedComments: 0,
-    removalRate: totalActioned > 0 ? Math.round((removedPosts / totalActioned) * 100) : 0,
+    removedComments: removedCommentsFresh,
+    removalRate: totalActioned > 0 ? Math.round((removals.length / totalActioned) * 100) : 0,
     aiGeneratedSuspected: aiSuspected,
     aiGeneratedPercent: queue.length > 0 ? Math.round((aiSuspected / queue.length) * 100) : 0,
     topViolations: rules

@@ -11,15 +11,18 @@ export const REDIS_KEYS = {
   score: (sub: string, thingId: string) => `${REDIS_PREFIX}:score:${sub}:${thingId}`,
   actionLog: (sub: string) => `${REDIS_PREFIX}:actions:${sub}`,
   userActivity: (sub: string, username: string) => `${REDIS_PREFIX}:user:${sub}:${username}`,
+  activityLog: (sub: string, username: string) => `${REDIS_PREFIX}:act24:${sub}:${username}`,
   schedulerLock: (sub: string) => `${REDIS_PREFIX}:lock:${sub}`,
 } as const;
 
 export const QUEUE_MAX_SIZE = 200;
 export const NOTES_MAX_PER_THING = 50;
 export const ACTION_LOG_MAX = 500;
-export const SCORE_TTL_MS = 24 * 60 * 60 * 1000;      // 24 hours
-export const HEALTH_CACHE_TTL_MS = 60 * 60 * 1000;    // 1 hour
+export const SCORE_TTL_MS = 24 * 60 * 60 * 1000;         // 24 hours
+export const HEALTH_CACHE_TTL_MS = 60 * 60 * 1000;       // 1 hour
 export const QUEUE_ITEM_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const ACTIVITY_TRACK_TTL_SECONDS = 2 * 24 * 60 * 60; // 48 hours
+export const ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000;   // 24-hour rolling window
 
 export const RISK_THRESHOLDS = {
   CRITICAL: 85,

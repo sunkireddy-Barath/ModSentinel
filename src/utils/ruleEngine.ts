@@ -7,6 +7,7 @@
 import type { Context } from '@devvit/public-api';
 import type { Rule, RuleCondition, QueueItem, AIScore } from '../types.js';
 import { REDIS_KEYS } from '../constants.js';
+import { getUserActivity24h } from './redisHelpers.js';
 
 interface EvaluationContext {
   item: QueueItem;
@@ -42,7 +43,7 @@ export async function evaluateRules(
 
   if (needsPostCount || needsCommentCount) {
     try {
-      const counts = await getActivityCounts(context, item.author, subredditName);
+      const counts = await getUserActivity24h(context, subredditName, item.author);
       postCount24h = counts.posts;
       commentCount24h = counts.comments;
     } catch {
@@ -152,33 +153,6 @@ function stringMatch(actual: string, op: string, expected: string): boolean {
       }
     }
     default: return false;
-  }
-}
-
-async function getActivityCounts(
-  context: Context,
-  username: string,
-  subredditName: string,
-): Promise<{ posts: number; comments: number }> {
-  try {
-    const user = await context.reddit.getUserByUsername(username);
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-
-    const recentPosts = await context.reddit.getPostsByUser({
-      username,
-      sort: 'new',
-      limit: 25,
-    });
-
-    let posts = 0;
-    for await (const post of recentPosts) {
-      if (post.createdAt.getTime() < cutoff) break;
-      if (post.subredditName === subredditName) posts++;
-    }
-
-    return { posts, comments: 0 };
-  } catch {
-    return { posts: 0, comments: 0 };
   }
 }
 

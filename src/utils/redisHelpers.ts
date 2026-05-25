@@ -1,6 +1,6 @@
 import type { Context } from '@devvit/public-api';
 import type { QueueItem, AppConfig } from '../types.js';
-import { REDIS_KEYS, QUEUE_MAX_SIZE, QUEUE_ITEM_TTL_MS } from '../constants.js';
+import { REDIS_KEYS, QUEUE_MAX_SIZE, QUEUE_ITEM_TTL_MS, ACTIVITY_TRACK_TTL_SECONDS, ACTIVITY_WINDOW_MS } from '../constants.js';
 
 export async function getConfig(context: Context): Promise<AppConfig> {
   const sub = await context.reddit.getCurrentSubreddit();
@@ -88,6 +88,56 @@ export async function checkIsMod(
     return false;
   }
 }
+
+// ─── 24-hour rolling activity tracking (for rule engine) ─────────────────────
+
+interface ActivityLog {
+  posts: number[];    // unix-ms timestamps of posts in this sub
+  comments: number[]; // unix-ms timestamps of comments in this sub
+}
+
+export async function trackUserActivity(
+  context: Context,
+  subredditName: string,
+  username: string,
+  type: 'post' | 'comment',
+): Promise<void> {
+  const key = REDIS_KEYS.activityLog(subredditName, username);
+  const stored = await context.redis.get(key);
+  const log: ActivityLog = stored ? (JSON.parse(stored) as ActivityLog) : { posts: [], comments: [] };
+
+  const now = Date.now();
+  const cutoff = now - ACTIVITY_WINDOW_MS - 60_000; // slight buffer
+
+  if (type === 'post') {
+    log.posts = [...log.posts.filter(t => t > cutoff), now];
+  } else {
+    log.comments = [...log.comments.filter(t => t > cutoff), now];
+  }
+
+  await context.redis.set(key, JSON.stringify(log));
+  await context.redis.expire(key, ACTIVITY_TRACK_TTL_SECONDS);
+}
+
+export async function getUserActivity24h(
+  context: Context,
+  subredditName: string,
+  username: string,
+): Promise<{ posts: number; comments: number }> {
+  const key = REDIS_KEYS.activityLog(subredditName, username);
+  const stored = await context.redis.get(key);
+  if (!stored) return { posts: 0, comments: 0 };
+
+  const log: ActivityLog = JSON.parse(stored) as ActivityLog;
+  const cutoff = Date.now() - ACTIVITY_WINDOW_MS;
+
+  return {
+    posts: log.posts.filter(t => t > cutoff).length,
+    comments: log.comments.filter(t => t > cutoff).length,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function buildQueueItemFromPost(
   context: Context,
