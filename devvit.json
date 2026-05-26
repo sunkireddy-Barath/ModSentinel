@@ -1,7 +1,8 @@
 {
   "$schema": "https://developers.reddit.com/schema/devvit.json",
-  "name": "modsentinel",
-  "version": "1.0.0",
-  "description": "AI-powered Reddit moderation command center — intelligent triage, visual rule builder, collaborative mod notes, and community health analytics",
-  "homepage": "https://developers.reddit.com"
+  "name": "ms-modsentinel",
+  "post": {},
+  "dev": {
+    "subreddit": "ms_modsentinel_dev"
+  }
 }

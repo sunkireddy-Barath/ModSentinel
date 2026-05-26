@@ -1,6 +1,6 @@
 {
-  "name": "modsentinel",
-  "version": "1.0.0",
+  "name": "ms-modsentinel",
+  "version": "0.0.0",
   "private": true,
   "description": "AI-powered Reddit moderation command center",
   "scripts": {
@@ -11,7 +11,7 @@
     "web:build": "cd web && npm run build"
   },
   "dependencies": {
-    "@devvit/public-api": "^0.11.0"
+    "@devvit/public-api": "0.12.24"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -19,5 +19,7 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "type": "module",
+  "license": "BSD-3-Clause"
 }

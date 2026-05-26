@@ -4,7 +4,7 @@
 > Competing in: **Best New Mod Tool** · **Best Ported App** · **Moderator's Choice**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Try%20Now-FF4500?style=for-the-badge&logo=vercel)](https://webroot-wheat.vercel.app)
-[![Devvit App](https://img.shields.io/badge/Reddit%20App-modsentinel-FF4500?style=for-the-badge&logo=reddit)](https://developers.reddit.com/apps/modsentinel)
+[![Devvit App](https://img.shields.io/badge/Reddit%20App-modsentinel-FF4500?style=for-the-badge&logo=reddit)](https://developers.reddit.com/apps/ms-modsentinel)
 [![Built with Devvit](https://img.shields.io/badge/Built%20with-Devvit%20v0.11-red?style=for-the-badge)](https://developers.reddit.com)
 [![ContextMod Port](https://img.shields.io/badge/Port%20of-ContextMod%20700%2B%20stars-22c55e?style=for-the-badge)](https://github.com/FoxxMD/context-mod)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
@@ -16,7 +16,7 @@
 | | URL |
 |---|---|
 | **Interactive Demo** | https://webroot-wheat.vercel.app |
-| **Reddit Developer App Page** | https://developers.reddit.com/apps/modsentinel |
+| **Reddit Developer App Page** | https://developers.reddit.com/apps/ms-modsentinel |
 | **Source Code** | https://github.com/Sunkireddy_Barath/ModSentinel |
 | **ContextMod (ported from)** | https://github.com/FoxxMD/context-mod |
 
@@ -264,7 +264,7 @@ devvit upload
 # 3. Install on your subreddit via Mod Tools → Apps
 ```
 
-**App listing:** https://developers.reddit.com/apps/modsentinel
+**App listing:** https://developers.reddit.com/apps/ms-modsentinel
 
 ### Deploy Demo to Vercel (live preview)
 
@@ -470,7 +470,7 @@ MIT — see [LICENSE](LICENSE)
 
 **ModSentinel** · Built for the Reddit Mod Tools & Migrated Apps Hackathon 2025
 
-[Live Demo](https://webroot-wheat.vercel.app) · [Reddit App](https://developers.reddit.com/apps/modsentinel) · [ContextMod](https://github.com/FoxxMD/context-mod)
+[Live Demo](https://webroot-wheat.vercel.app) · [Reddit App](https://developers.reddit.com/apps/ms-modsentinel) · [ContextMod](https://github.com/FoxxMD/context-mod)
 
 Made with ❤️ for Reddit moderators everywhere
 
