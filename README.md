@@ -116,41 +116,41 @@ This catches AI-generated content that automoderator misses entirely — content
 
 ```
    ┌────────────────────────────────────────────────────┐
-   │                  REDDIT PLATFORM                    │
+   │                  REDDIT PLATFORM                   │
    │  Events: PostCreate · CommentCreate                │
    │          PostReport · CommentReport · AppInstall   │
    └──────────────────────┬─────────────────────────────┘
                           │  serverless triggers (zero infra)
                           ▼
-   ┌────────────────────────────────────────────────────┐
-   │             DEVVIT BACKEND  (src/)                  │
-   │                                                    │
+   ┌───────────────────────────────────────────────────┐
+   │             DEVVIT BACKEND  (src/)                │
+   │                                                   │
    │  main.tsx                                         │
    │    routeMessage()  — 14 message types             │
    │    5 context menu items                           │
    │    weekly-health-digest cron (Mon 9 AM)           │
-   │                                                    │
+   │                                                   │
    │  utils/                                           │
    │    aiScorer.ts      Claude Haiku · AI%+Spam%      │
    │    ruleEngine.ts    ContextMod port (PRAW→API)    │
    │    actionHandler.ts remove/ban/mute/lock/report   │
    │    healthComputer.ts 7-day analytics + cache      │
    │    redisHelpers.ts  queue · notes · 24h counters  │
-   │                                                    │
+   │                                                   │
    │  Devvit Redis                                     │
    │    ms:queue:{sub}       ms:rules:{sub}            │
    │    ms:notes:{sub}:{id}  ms:health:{sub}           │
    │    ms:score:{sub}:{id}  ms:config:{sub}           │
    │    ms:actions:{sub}     ms:act24:{sub}:{user}     │
-   └──────────────────────┬─────────────────────────────┘
+   └──────────────────────┬────────────────────────────┘
                           │  postMessage bridge
                           │  (14 msg types each direction)
                           ▼
-   ┌────────────────────────────────────────────────────┐
-   │       WEBVIEW  (React 18 + Vite 5 + Tailwind)      │
-   │                                                    │
+   ┌───────────────────────────────────────────────────┐
+   │       WEBVIEW  (React 18 + Vite 5 + Tailwind)     │
+   │                                                   │
    │  App.tsx + useDevvit.ts (postMessage bridge)      │
-   │                                                    │
+   │                                                   │
    │  Dashboard    AI triage queue + keyboard nav      │
    │  RuleBuilder  visual no-code rule editor          │
    │  HealthPulse  Recharts 7-day trend charts         │
@@ -158,11 +158,11 @@ This catches AI-generated content that automoderator misses entirely — content
    │  ModNotes     collaborative notes + 6 labels      │
    │  Sidebar      navigation + queue depth badge      │
    │  Onboarding   4-step setup wizard                 │
-   └──────────────────────┬─────────────────────────────┘
+   └──────────────────────┬────────────────────────────┘
                           │  HTTPS · api.anthropic.com
                           ▼
    ┌────────────────────────────────────────────────────┐
-   │         ANTHROPIC API  (external, optional)         │
+   │         ANTHROPIC API  (external, optional)        │
    │  claude-haiku-4-5-20251001                         │
    │  Returns: aiScore · spamScore · riskLevel          │
    │           signals[] · explanation                  │
