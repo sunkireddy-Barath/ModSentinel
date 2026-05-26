@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Plus, Save, Trash2, ToggleLeft, ToggleRight,
   ChevronDown, ChevronUp, GripVertical, AlertTriangle, Loader2,
@@ -86,6 +86,13 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
   const [dirty, setDirty] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+
+  // Sync from prop when rules arrive after initial empty mount (async load)
+  useEffect(() => {
+    if (!dirty && rules.length > 0 && localRules.length === 0) {
+      setLocalRules(rules);
+    }
+  }, [rules]);
 
   const update = (updated: Rule[]) => {
     setLocalRules(updated);

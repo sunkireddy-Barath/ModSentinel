@@ -8,7 +8,10 @@ export default defineConfig({
     outDir: '../webroot',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'index.html'),
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        devtest: resolve(__dirname, 'devtest.html'),
+      },
     },
   },
   server: {

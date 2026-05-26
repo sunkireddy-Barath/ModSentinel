@@ -148,6 +148,7 @@ function ToastContainer({ toasts }: { toasts: Toast[] }) {
 export function App() {
   // ── State ──────────────────────────────────────────────────────────────────
   const [initialized, setInitialized] = useState(false);
+  const [isMod, setIsMod] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [username, setUsername] = useState('');
   const [subreddit, setSubreddit] = useState('');
@@ -195,6 +196,7 @@ export function App() {
         setConfig(msg.config);
         setUsername(msg.username);
         setSubreddit(msg.subreddit);
+        setIsMod(msg.isMod);
         setInitialized(true);
         break;
 
@@ -365,6 +367,23 @@ export function App() {
           </div>
           <div className="text-text-primary font-bold text-xl">ModSentinel</div>
           <div className="text-text-muted text-sm mt-1">Initializing…</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Mod gate ──────────────────────────────────────────────────────────────
+  if (!isMod) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-bg-primary">
+        <div className="text-center px-8">
+          <div className="w-20 h-20 bg-risk-critical/10 border border-risk-critical/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">🔒</span>
+          </div>
+          <div className="text-text-primary font-bold text-xl mb-2">Moderators Only</div>
+          <div className="text-text-muted text-sm max-w-xs mx-auto">
+            ModSentinel is available to subreddit moderators only. Log in with a mod account to access the dashboard.
+          </div>
         </div>
       </div>
     );

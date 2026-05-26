@@ -1,7 +1,7 @@
 # 🛡️ ModSentinel — AI-Powered Reddit Moderation Command Center
 
 > **Devvit Hackathon 2025 (April 29 – May 27, 2026)**
-> Competing in: **Best New Mod Tool** · **Best Ported Data API App** · **Devvit Helper Award**
+> Competing in: **Best New Mod Tool** · **Best Ported App** · **Moderator's Choice**
 
 A unified Devvit app that gives Reddit mod teams a real-time AI triage queue, visual rule builder, collaborative mod notes, and community health analytics — all natively inside Reddit with zero external infrastructure.
 
@@ -22,26 +22,26 @@ A unified Devvit app that gives Reddit mod teams a real-time AI triage queue, vi
 
 ## Why It Wins
 
-### 🏆 Best New Mod Tool Honorable Mention ($1,000)
+### 🏆 Best New Mod Tool ($10,000 Grand Prize)
 
 - **Solves the #1 2025 mod pain point**: AI-generated content. ModSentinel uses Claude Haiku to detect AI-written posts/comments at scale, something no existing Devvit tool does.
 - **Complete mod command center**: Triage queue + rule engine + notes + analytics in one install.
 - **Zero-maintenance for mods**: Auto-scoring on every PostCreate/CommentCreate + weekly health digest posted automatically. Mods get protection without manual effort.
 - **5× faster review**: Queue review drops from ~8 min/item to ~90 sec with AI context pre-filled.
 
-### 🏆 Best Ported Data API App Honorable Mention ($1,000)
+### 🏆 Best Ported App ($10,000 Grand Prize)
 
 - **Full port of [ContextMod](https://github.com/FoxxMD/context-mod)** — the most-used external Reddit mod automation tool (MIT license, 700+ GitHub stars).
 - **Complete API translation**: Every PRAW call → Devvit Reddit API. Hosted server → Devvit serverless triggers. SQLite state → Devvit Redis.
 - **Added native platform value**: Visual rule builder (ContextMod required YAML config files), one-click install (ContextMod required a self-hosted server), Redis-native activity counters.
 - **ContextMod-compatible rule schema**: Existing ContextMod users can recreate their rules in the UI without learning new syntax.
 
-### 🏆 Devvit Helper Award ($500)
+### 🏆 Moderator's Choice ($10,000 Grand Prize)
 
-- Full MIT-licensed source with inline documentation explaining the Devvit-specific patterns.
-- `TriggerContext` vs `Context` cast pattern documented in code comments — a common Devvit gotcha.
-- `devtest.html` standalone test harness demonstrates how to build and test a Devvit WebView app without Playtest.
-- Full PRAW → Devvit API mapping table in this README explains every translation for developers porting existing bots.
+- Solves the **#1 real mod pain point in 2025**: AI-generated spam and content flooding.
+- Zero-maintenance: mods get automated triage, weekly health reports, and rule enforcement with a single install.
+- Cuts per-item review time from ~8 min to ~90 sec with AI context pre-loaded.
+- Full MIT-licensed source with inline documentation explaining every Devvit-specific pattern used.
 
 ---
 
@@ -123,8 +123,22 @@ devvit upload
 3. Subreddit context menu → **Open ModSentinel Dashboard**
 4. Complete the 4-step onboarding wizard
 
-### 4. Local dev / testing
-Open `webroot/devtest.html` in a browser — it runs the full React app with a mocked Devvit backend so you can test all features without Playtest or a live subreddit.
+### 4. Local dev / testing (devtest harness)
+
+After building (`cd web && npm run build`), serve the webroot folder and open devtest.html:
+
+```bash
+cd webroot && npx serve .
+# then open http://localhost:3000/devtest.html
+```
+
+Or use the Vite dev server for hot-reload during development:
+```bash
+cd web && npm run dev
+# then open http://localhost:5173/devtest.html
+```
+
+The devtest harness runs the full React app with a mocked Devvit backend — all 6 features, realistic queue data, rule builder, health charts, and user profiles — **no Playtest or live subreddit needed**.
 
 ---
 

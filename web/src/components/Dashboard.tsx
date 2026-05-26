@@ -145,6 +145,12 @@ export function Dashboard({
           if (item?.status === 'pending') onAction(expandedId, 'remove');
           break;
         }
+        case 'h': {
+          if (!expandedId) return;
+          const item = filtered.find(i => i.id === expandedId);
+          if (item?.status === 'pending') onAction(expandedId, 'hold');
+          break;
+        }
         case 's': {
           if (!expandedId) return;
           const item = filtered.find(i => i.id === expandedId);
@@ -350,6 +356,7 @@ export function Dashboard({
                 ['k / ↑', 'Previous pending item'],
                 ['a', 'Approve focused item'],
                 ['r', 'Remove focused item'],
+                ['h', 'Hold focused item'],
                 ['s', 'AI-score focused item'],
                 ['x', 'Toggle select focused item'],
                 ['Esc', 'Collapse / close'],
