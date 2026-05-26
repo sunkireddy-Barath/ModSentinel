@@ -50,7 +50,7 @@ Every new post and comment is automatically scored by **Claude Haiku** for AI-ge
 Every new post and comment is scored in real time by Claude Haiku. The queue shows risk level (CRITICAL / HIGH / MEDIUM / LOW / SAFE), AI percentage, spam percentage, and human-readable risk signals ("repetitive phrasing", "generic positive sentiment", "lacks personal voice"). One-click actions: **Remove · Approve · Hold · Ban · Mute · Lock**. Keyboard shortcuts for power mods.
 
 ### 2. Visual Rule Builder
-No-code rule editor. Build conditions on 8 fields (account age, karma, AI score, spam score, post frequency, comment frequency, report count, cross-sub activity) and assign actions (remove, approve, hold, ban, mute, report, lock, distinguish, flair). Drag-and-drop priority ordering. Rules fire automatically on every new post/comment when auto-enforcement is on. ContextMod-compatible schema — existing rules port directly.
+No-code rule editor. Build conditions on 8 fields (account age, karma, AI score, spam score, post frequency, comment frequency, report count, cross-sub activity) and assign actions (remove, approve, hold, ban, mute, report, lock, distinguish, flair). Up/down arrow priority reordering. Rules fire automatically on every new post/comment when auto-enforcement is on. ContextMod-compatible schema — existing rules port directly.
 
 ### 3. Collaborative Mod Notes
 Shared notes on users, posts, and comments. Synced across the entire mod team via Devvit Redis and written to Reddit's native mod notes API. Six label types: spam · abuse · warning · helpful · watch · info. Notes persist and are visible to every mod on the team.
@@ -181,11 +181,11 @@ This catches AI-generated content that automoderator misses entirely — content
 ```
 WebView → Devvit          Devvit → WebView
 ────────────────          ────────────────
-INIT                      INIT_RESPONSE
+INIT                      INIT_DATA
 LOAD_QUEUE                QUEUE_DATA
 SCORE_ITEM                SCORE_RESULT
-TAKE_ACTION               ACTION_RESULT
-ADD_NOTE                  NOTE_ADDED
+TAKE_ACTION               ACTION_COMPLETE
+ADD_NOTE                  NOTE_SAVED
 GET_NOTES                 NOTES_DATA
 LOAD_RULES                RULES_DATA
 SAVE_RULES                RULES_SAVED
@@ -194,7 +194,7 @@ LOAD_USER                 USER_DATA
 GET_CONFIG                CONFIG_DATA
 SAVE_CONFIG               CONFIG_SAVED
 COMPLETE_SETUP            SETUP_COMPLETE
-OPEN_PERMALINK            (opens Reddit tab)
+OPEN_PERMALINK            ERROR
 ```
 
 ---
@@ -453,3 +453,27 @@ log.posts = [...log.posts.filter(t => t > cutoff), Date.now()];
 **Moderator's Choice** — Solves the real pain mod teams face daily. Works without any setup beyond an API key. Keyboard-driven for power mods. Collaborative tools that the whole team benefits from immediately.
 
 ---
+
+## Attribution
+
+Rule engine ported from [ContextMod](https://github.com/FoxxMD/context-mod) by @FoxxMD — MIT License.
+
+AI scoring powered by [Anthropic Claude Haiku](https://www.anthropic.com) (`claude-haiku-4-5-20251001`).
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE)
+
+---
+
+<div align="center">
+
+**ModSentinel** · Built for the Reddit Mod Tools & Migrated Apps Hackathon 2025
+
+[Live Demo](https://webroot-wheat.vercel.app) · [Reddit App](https://developers.reddit.com/apps/modsentinel) · [ContextMod](https://github.com/FoxxMD/context-mod)
+
+Made with ❤️ for Reddit moderators everywhere
+
+</div>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Plus, Save, Trash2, ToggleLeft, ToggleRight,
-  ChevronDown, ChevronUp, GripVertical, AlertTriangle, Loader2,
+  ChevronDown, ChevronUp, ArrowUp, ArrowDown, AlertTriangle, Loader2,
   Copy, Download, Upload,
 } from 'lucide-react';
 import type { Rule, RuleCondition, RuleAction, ConditionField, ConditionOperator, ActionType } from '../types';
@@ -135,6 +135,15 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
     update(localRules.map(r => r.id === id ? { ...r, ...patch } : r));
   };
 
+  const moveRule = (id: string, dir: -1 | 1) => {
+    const idx = localRules.findIndex(r => r.id === id);
+    const next = idx + dir;
+    if (next < 0 || next >= localRules.length) return;
+    const reordered = [...localRules];
+    [reordered[idx], reordered[next]] = [reordered[next], reordered[idx]];
+    update(reordered);
+  };
+
   const exportRules = () => {
     const blob = new Blob([JSON.stringify(localRules, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -230,12 +239,15 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
             key={rule.id}
             rule={rule}
             index={idx}
+            total={localRules.length}
             isEditing={editingId === rule.id}
             onToggleEdit={() => setEditingId(id => id === rule.id ? null : rule.id)}
             onToggleEnabled={() => toggleEnabled(rule.id)}
             onDelete={() => deleteRule(rule.id)}
             onDuplicate={() => duplicateRule(rule.id)}
             onUpdate={(patch) => updateRule(rule.id, patch)}
+            onMoveUp={() => moveRule(rule.id, -1)}
+            onMoveDown={() => moveRule(rule.id, 1)}
           />
         ))}
 
@@ -254,16 +266,19 @@ export function RuleBuilder({ rules, onSave, saving }: RuleBuilderProps) {
 // ─── RuleCard ─────────────────────────────────────────────────────────────────
 
 function RuleCard({
-  rule, index, isEditing, onToggleEdit, onToggleEnabled, onDelete, onDuplicate, onUpdate,
+  rule, index, total, isEditing, onToggleEdit, onToggleEnabled, onDelete, onDuplicate, onUpdate, onMoveUp, onMoveDown,
 }: {
   rule: Rule;
   index: number;
+  total: number;
   isEditing: boolean;
   onToggleEdit: () => void;
   onToggleEnabled: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onUpdate: (patch: Partial<Rule>) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   return (
     <div className={`bg-bg-card border rounded-xl transition-all ${
@@ -271,7 +286,24 @@ function RuleCard({
     } ${isEditing ? 'border-reddit-orange/40' : ''}`}>
       {/* Rule header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <GripVertical size={14} className="text-text-muted flex-shrink-0 cursor-grab" />
+        <div className="flex flex-col gap-0.5 flex-shrink-0">
+          <button
+            onClick={onMoveUp}
+            disabled={index === 0}
+            className="p-0.5 rounded hover:bg-bg-tertiary disabled:opacity-20 disabled:cursor-not-allowed transition-colors text-text-muted hover:text-text-secondary"
+            title="Move up"
+          >
+            <ArrowUp size={12} />
+          </button>
+          <button
+            onClick={onMoveDown}
+            disabled={index === total - 1}
+            className="p-0.5 rounded hover:bg-bg-tertiary disabled:opacity-20 disabled:cursor-not-allowed transition-colors text-text-muted hover:text-text-secondary"
+            title="Move down"
+          >
+            <ArrowDown size={12} />
+          </button>
+        </div>
 
         <div className="flex-1 min-w-0">
           {isEditing ? (
