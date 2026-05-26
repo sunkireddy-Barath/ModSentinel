@@ -1,4 +1,4 @@
-# ModSentinel — AI-Powered Reddit Moderation Command Center
+# ModSentinel — AI Powered Reddit Moderation Command Center
 
 > **Devvit Hackathon 2025 · Reddit Mod Tools & Migrated Apps**
 > Competing in: **Best New Mod Tool** · **Best Ported App** · **Moderator's Choice**
