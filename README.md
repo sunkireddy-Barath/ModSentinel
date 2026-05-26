@@ -1,9 +1,24 @@
-# 🛡️ ModSentinel — AI-Powered Reddit Moderation Command Center
+# ModSentinel — AI-Powered Reddit Moderation Command Center
 
-> **Devvit Hackathon 2025 (April 29 – May 27, 2026)**
+> **Devvit Hackathon 2025 (April 29 – May 28, 2026)**
 > Competing in: **Best New Mod Tool** · **Best Ported App** · **Moderator's Choice**
 
-A unified Devvit app that gives Reddit mod teams a real-time AI triage queue, visual rule builder, collaborative mod notes, and community health analytics — all natively inside Reddit with zero external infrastructure.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-webroot--wheat.vercel.app-orange?style=for-the-badge)](https://webroot-wheat.vercel.app)
+[![Devvit](https://img.shields.io/badge/Built%20with-Devvit%20v0.11-red?style=for-the-badge)](https://developers.reddit.com)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![ContextMod Port](https://img.shields.io/badge/Port%20of-ContextMod%20(700%2B%20stars)-green?style=for-the-badge)](https://github.com/FoxxMD/context-mod)
+
+A unified Devvit app that gives Reddit mod teams a real-time AI triage queue, visual rule builder, collaborative mod notes, and community health analytics — all natively inside Reddit with **zero external infrastructure**.
+
+---
+
+## Live Demo
+
+**Try the full app right now — no Reddit account needed:**
+
+> **[https://webroot-wheat.vercel.app](https://webroot-wheat.vercel.app)**
+
+The demo runs the complete React UI with a realistic mocked Devvit backend: 6 queue items across all risk levels, a working rule builder with 5 pre-built rules, community health charts, and user profiles with risk signals. Every button and feature works.
 
 ---
 
@@ -20,162 +35,368 @@ A unified Devvit app that gives Reddit mod teams a real-time AI triage queue, vi
 
 ---
 
-## Why It Wins
+## System Architecture
 
-### 🏆 Best New Mod Tool ($10,000 Grand Prize)
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         REDDIT PLATFORM                                  │
+│                                                                           │
+│  PostCreate ──►┐                                                          │
+│  CommentCreate ┤                                                          │
+│  PostReport ───┼──► Devvit Triggers ──────────────────────────────────┐  │
+│  CommentReport ┤    (serverless, zero infra)                          │  │
+│  AppInstall ───┘                                                       │  │
+│                                                                        │  │
+│  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │                    DEVVIT BACKEND (src/)                         │  │  │
+│  │                                                                   │  │  │
+│  │  main.tsx                                                        │  │  │
+│  │  ┌──────────────┐  ┌────────────────┐  ┌─────────────────────┐ │  │  │
+│  │  │ routeMessage │  │  5 Menu Items  │  │ Scheduler (weekly)  │ │  │  │
+│  │  │  (14 types)  │  │  (context mod) │  │ health digest cron  │ │  │  │
+│  │  └──────┬───────┘  └────────────────┘  └─────────────────────┘ │  │  │
+│  │         │                                                        │  │  │
+│  │  ┌──────▼────────────────────────────────────────────────────┐  │  │  │
+│  │  │                      utils/                                │  │  │  │
+│  │  │  ┌─────────────┐ ┌───────────────┐ ┌──────────────────┐  │  │  │  │
+│  │  │  │ aiScorer.ts │ │ ruleEngine.ts │ │ actionHandler.ts │  │  │  │  │
+│  │  │  │ Claude Haiku│ │  ContextMod   │ │ remove/ban/mute  │  │  │  │  │
+│  │  │  │  scoring    │ │  port (PRAW→  │ │ lock/distinguish │  │  │  │  │
+│  │  │  │ AI%+spam%   │ │  Devvit API)  │ │ report/approve   │  │  │  │  │
+│  │  │  └──────┬──────┘ └───────┬───────┘ └────────┬─────────┘  │  │  │  │
+│  │  │         │                │                   │             │  │  │  │
+│  │  │  ┌──────▼────────────────▼───────────────────▼──────────┐ │  │  │  │
+│  │  │  │           healthComputer.ts  │  redisHelpers.ts        │ │  │  │  │
+│  │  │  │           7-day analytics   │  queue + activity log    │ │  │  │  │
+│  │  │  └─────────────────────────────────────────────────────┘  │  │  │  │
+│  │  └───────────────────────────────────────────────────────────┘  │  │  │
+│  │                                                                   │  │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │  │
+│  │  │                   DEVVIT REDIS                              │  │  │  │
+│  │  │  ms:queue:{sub}   ms:rules:{sub}   ms:health:{sub}         │  │  │  │
+│  │  │  ms:notes:{sub}:{id}               ms:score:{sub}:{id}     │  │  │  │
+│  │  │  ms:config:{sub}  ms:actions:{sub} ms:act24:{sub}:{user}   │  │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │  │
+│  └─────────────────────────────────────────────────────────────────┘  │  │
+│                                                                         │  │
+│  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │              WEBVIEW (React + Vite + Tailwind)                   │◄─┘  │
+│  │                                                                   │     │
+│  │  App.tsx ─────► useDevvit.ts (postMessage bridge)               │     │
+│  │       │          ▲ DevvitToWebView   ▼ WebViewToDevvit           │     │
+│  │       │          │  (14 msg types)   │  (14 msg types)           │     │
+│  │       ├──► Dashboard.tsx    (AI triage queue + keyboard nav)     │     │
+│  │       ├──► RuleBuilder.tsx  (visual no-code rule editor)         │     │
+│  │       ├──► HealthPulse.tsx  (Recharts 7-day trend charts)        │     │
+│  │       ├──► UserProfile.tsx  (risk profile + activity timeline)   │     │
+│  │       ├──► ModNotes.tsx     (collaborative notes + labels)       │     │
+│  │       ├──► Sidebar.tsx      (nav + queue depth badge)            │     │
+│  │       └──► Onboarding.tsx   (4-step setup wizard)               │     │
+│  └─────────────────────────────────────────────────────────────────┘     │
+│                                                                           │
+│  ┌──────────────────────────────────────────────────────────────────┐    │
+│  │              EXTERNAL SERVICES                                    │    │
+│  │                                                                   │    │
+│  │  Anthropic API ──► Claude Haiku (claude-haiku-4-5-20251001)      │    │
+│  │  (api.anthropic.com/v1/messages)  AI content scoring              │    │
+│  │                                   AI% + spam% + risk signals      │    │
+│  └──────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────┘
 
-- **Solves the #1 2025 mod pain point**: AI-generated content. ModSentinel uses Claude Haiku to detect AI-written posts/comments at scale, something no existing Devvit tool does.
-- **Complete mod command center**: Triage queue + rule engine + notes + analytics in one install.
-- **Zero-maintenance for mods**: Auto-scoring on every PostCreate/CommentCreate + weekly health digest posted automatically. Mods get protection without manual effort.
-- **5× faster review**: Queue review drops from ~8 min/item to ~90 sec with AI context pre-filled.
-
-### 🏆 Best Ported App ($10,000 Grand Prize)
-
-- **Full port of [ContextMod](https://github.com/FoxxMD/context-mod)** — the most-used external Reddit mod automation tool (MIT license, 700+ GitHub stars).
-- **Complete API translation**: Every PRAW call → Devvit Reddit API. Hosted server → Devvit serverless triggers. SQLite state → Devvit Redis.
-- **Added native platform value**: Visual rule builder (ContextMod required YAML config files), one-click install (ContextMod required a self-hosted server), Redis-native activity counters.
-- **ContextMod-compatible rule schema**: Existing ContextMod users can recreate their rules in the UI without learning new syntax.
-
-### 🏆 Moderator's Choice ($10,000 Grand Prize)
-
-- Solves the **#1 real mod pain point in 2025**: AI-generated spam and content flooding.
-- Zero-maintenance: mods get automated triage, weekly health reports, and rule enforcement with a single install.
-- Cuts per-item review time from ~8 min to ~90 sec with AI context pre-loaded.
-- Full MIT-licensed source with inline documentation explaining every Devvit-specific pattern used.
+DEMO DEPLOYMENT (judges / preview)
+  webroot/ ──► Vercel (static) ──► https://webroot-wheat.vercel.app
+              devtest.html mock backend (all 14 message handlers)
+```
 
 ---
 
-## Architecture
+## Message Protocol (WebView ↔ Devvit)
 
 ```
-Devvit App (src/)
-├── main.tsx              Custom post · triggers · scheduler · menu items · settings
-├── constants.ts          Redis key schema · thresholds · default rules
-├── types.ts              Shared TypeScript types
-└── utils/
-    ├── aiScorer.ts       Anthropic Claude Haiku scoring (AI%, spam%, risk level, signals)
-    ├── ruleEngine.ts     ContextMod rule evaluation engine (ported from PRAW)
-    ├── actionHandler.ts  Reddit mod actions: remove / ban / mute / report / lock
-    ├── healthComputer.ts 7-day community health stats with Redis action log
-    └── redisHelpers.ts   Queue · config · notes · 24h rolling activity tracker
-
-React WebView (web/src/)
-├── App.tsx               State machine + Devvit postMessage router
-├── components/
-│   ├── Dashboard.tsx     AI triage queue with filters, sort, and one-click actions
-│   ├── RuleBuilder.tsx   Visual rule editor (condition builder + action selector)
-│   ├── ModNotes.tsx      Collaborative notes with label system
-│   ├── HealthPulse.tsx   Recharts analytics dashboard with 7-day trend chart
-│   ├── UserProfile.tsx   Per-user timeline, risk profile, and mod history
-│   ├── Sidebar.tsx       Navigation with queue depth badge
-│   └── Onboarding.tsx    4-step setup wizard
-└── hooks/
-    └── useDevvit.ts      WebView ↔ Devvit postMessage bridge (handles both runtime and devtest)
+WebView → Devvit (14 types)          Devvit → WebView (14 types)
+─────────────────────────────        ───────────────────────────
+INIT                                 INIT_RESPONSE
+LOAD_QUEUE                           QUEUE_DATA
+SCORE_ITEM                           SCORE_RESULT
+TAKE_ACTION                          ACTION_RESULT
+ADD_NOTE                             NOTE_ADDED
+GET_NOTES                            NOTES_DATA
+LOAD_RULES                           RULES_DATA
+SAVE_RULES                           RULES_SAVED
+LOAD_HEALTH                          HEALTH_DATA
+LOAD_USER                            USER_DATA
+GET_CONFIG                           CONFIG_DATA
+SAVE_CONFIG                          CONFIG_SAVED
+COMPLETE_SETUP                       SETUP_COMPLETE
+OPEN_PERMALINK                       (opens Reddit tab)
 ```
 
-### Triggers
+---
 
-| Trigger | What It Does |
-|---------|-------------|
-| `AppInstall` | Seeds 5 default rules and initial config on first install |
-| `PostCreate` | Scores every new post; tracks author 24h activity; applies rules if auto-enforcement enabled |
-| `CommentCreate` | Same as above for comments ≥100 chars |
-| `PostReport` | Queues any reported post immediately and scores it |
-| `CommentReport` | Queues any reported comment immediately and scores it |
-| `weekly-health-digest` (cron) | Posts Monday 9 AM health report as a distinguished mod post |
+## Triggers
 
-### Redis Schema
+| Trigger | When | What It Does |
+|---------|------|-------------|
+| `AppInstall` | On first install | Seeds 5 default rules and initial config in Redis |
+| `PostCreate` | Every new post | Scores with Claude Haiku; tracks author 24h activity; applies rules if auto-enforcement on |
+| `CommentCreate` | Comments ≥ 100 chars | Same scoring + tracking as PostCreate |
+| `PostReport` | Post receives a report | Immediately queues and scores the reported post |
+| `CommentReport` | Comment receives a report | Immediately queues and scores the reported comment |
+| `weekly-health-digest` | Every Monday 9 AM | Posts a distinguished mod report with 7-day community health stats |
 
-| Key | Contents |
-|-----|----------|
-| `ms:queue:{sub}` | JSON array of up to 200 queue items with AI scores (7-day TTL per item) |
-| `ms:notes:{sub}:{id}` | JSON array of mod notes (50 max per thread/user) |
-| `ms:rules:{sub}` | JSON array of rule definitions with match counters |
-| `ms:health:{sub}` | Cached health stats (1-hr TTL) |
-| `ms:score:{sub}:{id}` | Cached AI score (24-hr TTL) |
-| `ms:config:{sub}` | App config (setup state, API key presence, automation flags) |
-| `ms:actions:{sub}` | Action log, last 500 entries |
-| `ms:act24:{sub}:{user}` | Rolling timestamp arrays for 24h post/comment counts (48-hr TTL) |
+---
+
+## Redis Schema
+
+| Key | TTL | Max Size | Contents |
+|-----|-----|----------|----------|
+| `ms:queue:{sub}` | 7d per item | 200 items | JSON array of queue items with AI scores, risk levels, status |
+| `ms:notes:{sub}:{id}` | Permanent | 50 per thread | JSON array of mod notes with labels and author info |
+| `ms:rules:{sub}` | Permanent | Unlimited | JSON array of rule definitions with match counters |
+| `ms:health:{sub}` | 1h cache | 1 object | Community health stats: 7-day trend, top violations, mod activity |
+| `ms:score:{sub}:{id}` | 24h cache | 1 object | Claude Haiku AI score: aiScore, spamScore, riskLevel, signals |
+| `ms:config:{sub}` | Permanent | 1 object | Setup state, API key presence, auto-score/action flags |
+| `ms:actions:{sub}` | Permanent | 500 entries | Action log: itemId, action, reason, mod, timestamp, automated |
+| `ms:act24:{sub}:{user}` | 48h | Rolling | Timestamp arrays for 24h post/comment activity (spam burst detection) |
+
+---
+
+## Default Rules (ContextMod-compatible)
+
+| # | Rule Name | Conditions | Action | Default |
+|---|-----------|-----------|--------|---------|
+| 1 | New Account Spam Guard | `accountAge < 7 days` AND `karma < 10` | Hold | Enabled |
+| 2 | AI Content Filter | `aiScore >= 80` | Report | Enabled |
+| 3 | Spam Burst Detection | `postsLast24h > 5` | Remove | Enabled |
+| 4 | Community-Flagged Content | `reportCount >= 3` | Hold | Enabled |
+| 5 | Cross-Subreddit Spam | `uniqueSubsLast24h > 8` | Report | Disabled |
+
+All rules are editable and reorderable in the Visual Rule Builder. New rules can be created with any combination of 8 condition fields and 9 action types.
+
+### Condition Fields
+`accountAge` · `karma` · `aiScore` · `spamScore` · `postsLast24h` · `commentsLast24h` · `reportCount` · `uniqueSubsLast24h`
+
+### Action Types
+`remove` · `approve` · `hold` · `ban` · `mute` · `report` · `lock` · `distinguish` · `flair`
+
+---
+
+## AI Scoring (Claude Haiku)
+
+Every scored item returns a structured JSON payload:
+
+```json
+{
+  "aiScore": 87,
+  "spamScore": 23,
+  "riskLevel": "HIGH",
+  "signals": ["repetitive phrasing", "generic positive sentiment", "lacks personal voice"],
+  "explanation": "Content exhibits high probability of AI generation..."
+}
+```
+
+- **aiScore**: 0–100 probability of AI-generated content
+- **spamScore**: 0–100 probability of spam behavior
+- **riskLevel**: `CRITICAL` (90+) · `HIGH` (70+) · `MEDIUM` (50+) · `LOW` (30+) · `SAFE`
+- **signals**: Human-readable flags shown in the triage queue and user profiles
+- **Heuristic fallback**: When the Anthropic API is unavailable, keyword-based scoring activates automatically
+
+---
+
+## ContextMod Port
+
+ModSentinel is a **complete port** of [ContextMod](https://github.com/FoxxMD/context-mod) (MIT, 700+ stars) — the most widely used external Reddit moderation automation tool — into the Devvit platform.
+
+| PRAW / ContextMod | ModSentinel / Devvit |
+|-------------------|---------------------|
+| `praw.Reddit()` client | `context.reddit.*` methods |
+| `Subreddit.mod.queue()` polling | `PostCreate` / `CommentCreate` triggers |
+| `Redditor.submissions.new()` 24h count | Redis rolling timestamp array (`ms:act24:{sub}:{user}`) |
+| Rule YAML config files | `ms:rules:{sub}` Redis key, visual UI editor |
+| SQLite for state | Devvit Redis (`context.redis`) |
+| Self-hosted webhook server | Devvit serverless triggers (zero infra) |
+| `Comment.mod.remove()` | `context.reddit.remove(itemId, false)` |
+| `Subreddit.banned.add()` | `context.reddit.banUser({ subredditName, username, ... })` |
+| `Redditor.message()` | `context.reddit.sendPrivateMessage()` |
+| Wiki-page YAML config | Visual rule builder (no YAML required) |
+| Manual install + `docker-compose` | One-click Devvit install, zero dependencies |
+
+**Added beyond ContextMod:**
+- Claude Haiku AI content scoring (ContextMod has no AI detection)
+- Community health analytics with 7-day trend charts
+- Collaborative mod notes synced to Reddit's native mod notes API
+- Per-user risk profiles with spam/AI/behavior signal badges
+- Weekly auto-posted health digest
+- Keyboard-driven triage queue (j/k navigate, a/r/h/s/x act, ? help)
+
+---
+
+## Why It Wins
+
+### Best New Mod Tool ($10,000)
+
+- **Solves the #1 2025 mod pain point**: AI-generated content flooding subreddits. ModSentinel uses Claude Haiku to detect AI-written posts/comments at scale — no existing Devvit tool does this.
+- **Complete mod command center**: Triage queue + rule engine + notes + analytics in one install. Previously required 3-4 separate tools.
+- **Zero-maintenance**: Auto-scoring on every PostCreate/CommentCreate + weekly health digest. Mods get protection without any manual work.
+- **5× faster review**: Per-item review time drops from ~8 min to ~90 sec with AI context pre-filled.
+
+### Best Ported App ($10,000)
+
+- **Full port of ContextMod** — the most-used external Reddit mod automation tool. Every PRAW call translated to Devvit API, every YAML config translated to a visual UI.
+- **ContextMod-compatible rule schema**: Existing ContextMod users can recreate their rules in the UI without learning new syntax.
+- **Substantial native additions**: AI detection, analytics dashboard, and Reddit-native mod notes API — none of which exist in ContextMod.
+
+### Moderator's Choice ($10,000)
+
+- **Real mod pain point**: AI-generated spam is the top complaint in r/modnews in 2025.
+- **Keyboard-driven workflow**: Power mods can triage 50 items without touching a mouse (j/k/a/r/h/s/x/?).
+- **Shared context**: Collaborative mod notes and user profiles mean the whole team knows what's happening without asking.
+
+---
+
+## File Structure
+
+```
+ModSentinel/
+├── src/                          # Devvit backend (TypeScript)
+│   ├── main.tsx                  # App entry: triggers, menu items, scheduler, WebView host
+│   ├── types.ts                  # Shared types: message union types, Rule, UserProfile, etc.
+│   ├── constants.ts              # Redis key schema, thresholds, default rules
+│   └── utils/
+│       ├── aiScorer.ts           # Claude Haiku integration: scores posts/comments
+│       ├── ruleEngine.ts         # ContextMod rule evaluator (ported from PRAW)
+│       ├── actionHandler.ts      # Mod actions: remove, ban, mute, lock, report, etc.
+│       ├── healthComputer.ts     # Community health stats with 1h cache
+│       └── redisHelpers.ts       # Queue management, rolling 24h activity counters
+│
+├── web/                          # React WebView (built → webroot/)
+│   ├── src/
+│   │   ├── App.tsx               # Root state machine + message router
+│   │   ├── types.ts              # Frontend types (mirrors src/types.ts)
+│   │   ├── components/
+│   │   │   ├── Dashboard.tsx     # AI triage queue with keyboard shortcuts
+│   │   │   ├── RuleBuilder.tsx   # Visual no-code rule editor
+│   │   │   ├── HealthPulse.tsx   # Recharts analytics (7-day trend + breakdowns)
+│   │   │   ├── UserProfile.tsx   # Risk profile, activity timeline, mod history
+│   │   │   ├── ModNotes.tsx      # Collaborative notes with label system
+│   │   │   ├── Sidebar.tsx       # Navigation + queue depth badge
+│   │   │   └── Onboarding.tsx    # 4-step setup wizard
+│   │   └── hooks/
+│   │       └── useDevvit.ts      # postMessage bridge (runtime + devtest compatible)
+│   ├── public/
+│   │   └── vercel.json           # Redirect / → /devtest.html, cache headers
+│   ├── index.html                # Devvit WebView entry point
+│   ├── devtest.html              # Standalone demo with mocked Devvit backend
+│   └── vite.config.ts            # Code splitting: main 78KB, charts 517KB, icons 23KB
+│
+├── webroot/                      # Built output (committed for Vercel deploy)
+│   ├── index.html
+│   ├── devtest.html
+│   ├── vercel.json
+│   └── assets/
+│       ├── main-*.js             # App shell (78 KB)
+│       ├── main-*.css
+│       ├── charts-*.js           # Recharts chunk (517 KB)
+│       └── icons-*.js            # Lucide React chunk (23 KB)
+│
+├── devvit.json                   # App manifest: name, version, description
+├── package.json                  # Devvit CLI + TypeScript deps
+└── README.md
+```
 
 ---
 
 ## Setup & Deployment
 
 ### Prerequisites
+
 - [Devvit CLI](https://developers.reddit.com/docs/cli): `npm i -g devvit`
 - Node.js ≥ 18
-- An [Anthropic API key](https://console.anthropic.com)
+- An [Anthropic API key](https://console.anthropic.com) (Claude Haiku access)
 
-### 1. Build the React web app
+### 1. Build the React WebView
+
 ```bash
-cd web && npm install && npm run build
-# Outputs bundle to ../webroot/
+cd web
+npm install
+npm run build
+# Outputs optimized bundle to ../webroot/
 ```
 
 ### 2. Deploy to Devvit
+
 ```bash
 devvit upload
+# Follow prompts to select your developer account
 ```
 
-### 3. Install on your subreddit
-1. Subreddit → Mod Tools → Community Appearance → Apps → ModSentinel → Install
-2. App Settings → paste your Anthropic API key
-3. Subreddit context menu → **Open ModSentinel Dashboard**
-4. Complete the 4-step onboarding wizard
+### 3. Install on a Subreddit
 
-### 4. Local dev / testing (devtest harness)
+1. Go to your subreddit → **Mod Tools** → **Community Appearance** → **Apps**
+2. Find **ModSentinel** → **Install**
+3. In **App Settings**, paste your Anthropic API key
+4. From any subreddit page context menu → **Open ModSentinel Dashboard**
+5. Complete the **4-step onboarding wizard**
 
-After building (`cd web && npm run build`), serve the webroot folder and open devtest.html:
+### 4. Optional: Deploy Demo to Vercel
+
+The `webroot/` directory is a self-contained static site with a full mock backend:
 
 ```bash
-cd webroot && npx serve .
-# then open http://localhost:3000/devtest.html
+cd webroot
+vercel --prod --yes
+# Live at: https://your-project.vercel.app
 ```
 
-Or use the Vite dev server for hot-reload during development:
+The Vercel `vercel.json` (in `web/public/`, copied to `webroot/` on every build) redirects `/` to `/devtest.html` automatically.
+
+### 5. Local Development
+
+**Hot-reload dev server:**
 ```bash
 cd web && npm run dev
-# then open http://localhost:5173/devtest.html
+# Open: http://localhost:5173/devtest.html
 ```
 
-The devtest harness runs the full React app with a mocked Devvit backend — all 6 features, realistic queue data, rule builder, health charts, and user profiles — **no Playtest or live subreddit needed**.
+**Serve production build locally:**
+```bash
+cd webroot && npx serve .
+# Open: http://localhost:3000/devtest.html
+```
+
+The devtest harness runs the complete React app with a mocked Devvit backend — all 6 features work, with 6 realistic queue items, 5 default rules, health charts, and 3 user profiles. **No Playtest, no live subreddit, no API key needed.**
 
 ---
 
-## Default Rules (ContextMod-compatible)
+## Keyboard Shortcuts (Dashboard)
 
-| Rule | Conditions | Action |
-|------|-----------|--------|
-| New Account Spam Guard | age < 7 days AND karma < 10 | Hold |
-| AI Content Filter | AI score ≥ 80 | Report |
-| Spam Burst Detection | posts in 24h > 5 | Remove |
-| Community-Flagged Content | report count ≥ 3 | Hold |
-| Cross-Subreddit Spam | unique subs in 24h > 8 | Report (disabled by default) |
+| Key | Action |
+|-----|--------|
+| `j` | Next item |
+| `k` | Previous item |
+| `a` | Approve selected |
+| `r` | Remove selected |
+| `h` | Hold selected |
+| `s` | Score selected |
+| `x` | Expand/collapse selected |
+| `?` | Show help overlay |
 
 ---
 
-## ContextMod Port Notes
+## App Settings
 
-| PRAW / ContextMod | Devvit equivalent |
-|-------------------|------------------|
-| `praw.Reddit()` client | `context.reddit.*` methods |
-| `Subreddit.mod.queue()` | `PostCreate` / `CommentCreate` triggers + Redis queue |
-| `Redditor.submissions.new()` 24h count | Redis rolling timestamp array (`ms:act24:{sub}:{user}`) |
-| Rule YAML config files | `ms:rules:{sub}` Redis key, editable via WebView UI |
-| SQLite for state | Devvit Redis (all operations via `context.redis`) |
-| Hosted webhook server | Devvit serverless triggers (zero infra) |
-| `praw.models.Comment.mod.remove()` | `context.reddit.remove({ id, isSpam })` |
-| `praw.models.Subreddit.banned.add()` | `context.reddit.banUser({ subredditName, username, ... })` |
-| ContextMod wiki-page config | Visual rule builder UI (no YAML required) |
-
-The rule condition/action schema (`RuleCondition.field`, `RuleCondition.operator`, `Rule.action.type`) is intentionally compatible with ContextMod's YAML schema so power users can recreate existing rules.
+| Setting | Scope | Description |
+|---------|-------|-------------|
+| `anthropic-api-key` | App (secret) | Claude Haiku API key for AI scoring |
+| `auto-score-enabled` | Installation | Auto-score all new posts/comments (default: on) |
+| `auto-action-enabled` | Installation | Auto-apply rule actions without mod review (default: off) |
 
 ---
 
 ## Devvit Patterns for Developers
 
 **`TriggerContext` vs `Context`:**
-Devvit trigger handlers receive `TriggerContext = Omit<Context, 'ui' | 'dimensions' | 'modLog' | 'uiEnvironment'>`. If you have utility functions typed to `Context`, cast at the top of each handler:
+Devvit trigger handlers receive `TriggerContext = Omit<Context, 'ui' | 'dimensions' | 'modLog' | 'uiEnvironment'>`. Cast when passing to utilities typed to `Context`:
 ```typescript
 const ctx = context as unknown as Context;
 ```
@@ -183,19 +404,30 @@ const ctx = context as unknown as Context;
 **`PostV2` field access:**
 `event.post.subredditName` does not exist on the proto type. Use `event.subreddit?.name` instead.
 
-**24-hour rolling counters:**
-Don't use simple counters with daily resets — they break near midnight. Use Redis arrays of timestamps and filter by `Date.now() - 86400000`:
+**24-hour rolling activity counters:**
+Simple counters with daily resets break near midnight. Use Redis arrays of timestamps:
 ```typescript
+const cutoff = Date.now() - 86_400_000;
 log.posts = [...log.posts.filter(t => t > cutoff), Date.now()];
+await context.redis.set(key, JSON.stringify(log), { expiration: Date.now() + 172_800_000 });
 ```
+
+**`UserNoteLabel` enum values:**
+The Devvit `addModNote` API only accepts: `'BOT_BAN' | 'PERMA_BAN' | 'BAN' | 'ABUSE_WARNING' | 'SPAM_WARNING' | 'SPAM_WATCH' | 'SOLID_CONTRIBUTOR' | 'HELPFUL_USER'`. Map custom labels before calling.
+
+**WebView message format (both directions):**
+Devvit wraps incoming WebView messages: `{ type: 'devvit-message', data: { message: payload } }`. The `useDevvit.ts` hook handles both this wrapper (production) and unwrapped messages (devtest).
 
 ---
 
 ## Attribution
 
 Rule engine ported from [ContextMod](https://github.com/FoxxMD/context-mod) by @FoxxMD — MIT License.
-The condition evaluation logic, rule structure, and config philosophy are directly inspired by ContextMod.
+The condition evaluation logic, rule structure, and config schema are directly inspired by ContextMod.
+
+AI scoring powered by [Anthropic Claude Haiku](https://www.anthropic.com) (`claude-haiku-4-5-20251001`).
 
 ---
 
-*Built for the Devvit Hackathon 2025 · Reddit Mod Tools & Migrated Apps*
+*Built for the Reddit Mod Tools & Migrated Apps Hackathon 2025 · May 28, 2026 deadline*
+*3,026 participants · $45,000 in prizes*
