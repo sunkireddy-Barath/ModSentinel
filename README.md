@@ -453,13 +453,3 @@ log.posts = [...log.posts.filter(t => t > cutoff), Date.now()];
 **Moderator's Choice** — Solves the real pain mod teams face daily. Works without any setup beyond an API key. Keyboard-driven for power mods. Collaborative tools that the whole team benefits from immediately.
 
 ---
-
-## Attribution
-
-Rule engine ported from [ContextMod](https://github.com/FoxxMD/context-mod) by @FoxxMD — MIT License.
-
-AI scoring powered by [Anthropic Claude Haiku](https://www.anthropic.com) (`claude-haiku-4-5-20251001`).
-
----
-
-*Devvit Hackathon 2025 · May 28, 2026 · 3,026 participants · $45,000 in prizes*
