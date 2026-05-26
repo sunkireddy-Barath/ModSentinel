@@ -237,20 +237,19 @@ async function routeMessage(
       // Sync to Reddit native mod notes for users
       if (thingType === 'user') {
         try {
-          const labelMap: Record<string, string> = {
-            spam: 'SPAM',
-            abuse: 'ABUSE_WARNING',
+          const labelMap: Record<string, Parameters<typeof context.reddit.addModNote>[0]['label']> = {
+            spam:    'SPAM_WARNING',
+            abuse:   'ABUSE_WARNING',
             warning: 'ABUSE_WARNING',
-            helpful: 'HELPFUL',
-            watch: 'SOLID_CONTRIBUTOR',
-            info: 'HELPFUL',
+            helpful: 'HELPFUL_USER',
+            watch:   'SOLID_CONTRIBUTOR',
+            info:    'HELPFUL_USER',
           };
           await context.reddit.addModNote({
             subreddit: sub?.name ?? '',
             user: thingId,
             note: content,
-            label: (labelMap[label] ?? 'HELPFUL') as Parameters<typeof context.reddit.addModNote>[0]['label'],
-            redditId: thingId as `t1_${string}` | `t3_${string}`,
+            label: labelMap[label] ?? 'HELPFUL_USER',
           });
         } catch {
           // Native mod notes may be unavailable; Redis note is still saved

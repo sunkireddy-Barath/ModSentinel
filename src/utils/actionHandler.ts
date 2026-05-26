@@ -99,8 +99,7 @@ export async function handleModAction(
       }
 
       case 'flair':
-        // Post flair requires post-level context — skip silently
-        break;
+        throw new Error('Flair action requires setting flair via Reddit post context — use the Reddit UI directly');
 
       default:
         throw new Error(`Unknown action: ${input.action}`);

@@ -42,10 +42,10 @@ const OPERATOR_OPTIONS = (field: ConditionField): Array<{ value: ConditionOperat
     ];
   }
   return [
-    { value: 'contains',     label: 'contains' },
-    { value: 'not_contains', label: 'does not contain' },
-    { value: 'matches_regex','label': 'matches regex' },
-    { value: 'eq',           label: 'equals' },
+    { value: 'contains',      label: 'contains' },
+    { value: 'not_contains',  label: 'does not contain' },
+    { value: 'matches_regex', label: 'matches regex' },
+    { value: 'eq',            label: 'equals' },
   ];
 };
 

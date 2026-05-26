@@ -147,7 +147,7 @@ function UserHeader({ user }: { user: UserProfile }) {
           </span>
         </div>
         {/* Risk signals */}
-        {[...user.riskProfile.spamSignals, ...user.riskProfile.aiGenSignals].length > 0 && (
+        {[...user.riskProfile.spamSignals, ...user.riskProfile.aiGenSignals, ...user.riskProfile.behaviorPatterns].length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {user.riskProfile.spamSignals.map(s => (
               <span key={s} className="text-xs bg-risk-high/10 text-risk-high px-2 py-0.5 rounded-full border border-risk-high/20">
@@ -157,6 +157,11 @@ function UserHeader({ user }: { user: UserProfile }) {
             {user.riskProfile.aiGenSignals.map(s => (
               <span key={s} className="text-xs bg-purple-400/10 text-purple-400 px-2 py-0.5 rounded-full border border-purple-400/20">
                 <Cpu size={10} className="inline mr-1" />{s}
+              </span>
+            ))}
+            {user.riskProfile.behaviorPatterns.map(s => (
+              <span key={s} className="text-xs bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full border border-amber-400/20">
+                {s}
               </span>
             ))}
           </div>
