@@ -458,8 +458,6 @@ log.posts = [...log.posts.filter(t => t > cutoff), Date.now()];
 
 Rule engine ported from [ContextMod](https://github.com/FoxxMD/context-mod) by @FoxxMD — MIT License.
 
-AI scoring powered by [Anthropic Claude Haiku](https://www.anthropic.com) (`claude-haiku-4-5-20251001`).
-
 ---
 
 ## License
